@@ -34,6 +34,10 @@ async function selectedUnit(page: Page): Promise<string> {
   })
 }
 
+async function audioCue(page: Page): Promise<string> {
+  return page.evaluate(() => window.__WOT_AUDIO__.getLastCue())
+}
+
 async function battleSnapshot(page: Page): Promise<{ round: number; yao: { q: number; r: number } }> {
   return page.evaluate(() => {
     const scene = window.__WOT_GAME__.scene.getScene('battle') as unknown as {
@@ -98,12 +102,23 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   await page.screenshot({ path: 'test-results/wot-desktop-unit-tooltip.png' })
   await page.locator('canvas').click({ position: yao })
   await expect.poll(() => selectedUnit(page)).toBe('yao')
+  await expect.poll(() => audioCue(page)).toBe('select:yao')
   await page.mouse.move(800, 700)
   await page.waitForTimeout(120)
   await page.screenshot({ path: 'test-results/wot-desktop-selected.png' })
   const destination = await hexPoint(page, 1, 1)
   await page.locator('canvas').click({ position: destination })
   await expect.poll(() => battleSnapshot(page)).toMatchObject({ yao: { q: 1, r: 1 } })
+
+  const sora = await hexPoint(page, 0, 4)
+  await page.locator('canvas').click({ position: sora })
+  await expect.poll(() => selectedUnit(page)).toBe('sora')
+  const firingPosition = await hexPoint(page, 2, 3)
+  await page.locator('canvas').click({ position: firingPosition })
+  const mireGuard = await hexPoint(page, 4, 2)
+  await page.locator('canvas').click({ position: mireGuard })
+  await expect.poll(() => audioCue(page)).toBe('attack:sora:ranger')
+
   await page.locator('canvas').click({ position: { x: 1110, y: 620 } })
   await expect.poll(() => battleSnapshot(page), { timeout: 8_000 }).toMatchObject({ round: 2 })
   expect(errors).toEqual([])

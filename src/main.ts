@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import './style.css'
 import { BattleScene } from './game/BattleScene'
 import { CampaignScene } from './game/CampaignScene'
+import { audioDirector, type AudioDirector } from './game/audio'
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -27,9 +28,11 @@ const game = new Phaser.Game({
 declare global {
   interface Window {
     __WOT_GAME__: Phaser.Game
+    __WOT_AUDIO__: AudioDirector
   }
 }
 
 window.__WOT_GAME__ = game
+window.__WOT_AUDIO__ = audioDirector
 
 window.addEventListener('beforeunload', () => game.destroy(true))

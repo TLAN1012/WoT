@@ -53,7 +53,7 @@ export class CampaignScene extends Phaser.Scene {
     if (data?.result) this.showResult(data.result, width, height)
 
     this.input.once('pointerdown', () => {
-      void audioDirector.unlock().then(() => audioDirector.startMusic('campaign'))
+      void audioDirector.unlock()
     })
     audioDirector.startMusic('campaign')
   }

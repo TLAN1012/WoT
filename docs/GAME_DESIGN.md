@@ -76,7 +76,9 @@ Damage begins with attack minus a portion of armor, then applies terrain and gua
 
 ## Audio Direction
 
-Music is generated at runtime with Web Audio oscillators. Campaign mode uses a slower modal pulse; battle mode uses a more urgent sawtooth/triangle ostinato. Selection, movement, attacks, abilities, victory, and defeat have distinct synthesized cues. No third-party recording is distributed.
+Music is generated at runtime with Web Audio and scheduled ahead for stable rhythm. Campaign mode layers a slow modal melody, low drone, plucked tones, and restrained frame drums. Battle mode uses a faster 16-step score with taiko-style percussion, bass movement, horn swells, and shifting melodic phrases.
+
+Friendly characters have individual two-note selection cues and distinct vocal pitch profiles. Every attack begins with a short synthesized battle cry, followed by a role-specific melee, bow, tide-magic, or cannon sound. Enemy raiders, guards, artillery, and the commander use the same system with lower, more hostile voice profiles. Movement, abilities, victory, and defeat retain separate cues. All sound is original procedural synthesis; no third-party recording is distributed.
 
 ## Source Notes
 

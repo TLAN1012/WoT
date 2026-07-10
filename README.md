@@ -14,7 +14,7 @@ WoT takes inspiration from the short-session tactical clarity of mobile hex game
 - One-to-three-star ratings for victory, speed, and survival
 - Persistent local campaign progress
 - Responsive desktop and mobile layouts
-- Original procedural music and interaction sound effects via Web Audio
+- Original layered campaign/battle scores, character selection cues, battle cries, and role-specific weapon sounds via Web Audio
 - Hand-painted isometric terrain and 2D-rendered 3D miniatures generated for this project
 - A complete antique-chart campaign map with illustrated terrain relief
 

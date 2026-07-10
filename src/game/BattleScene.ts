@@ -118,7 +118,7 @@ export class BattleScene extends Phaser.Scene {
     this.refreshSelection()
 
     this.input.once('pointerdown', () => {
-      void audioDirector.unlock().then(() => audioDirector.startMusic('battle'))
+      void audioDirector.unlock()
     })
     audioDirector.startMusic('battle')
   }
@@ -393,7 +393,7 @@ export class BattleScene extends Phaser.Scene {
       if (unit.acted) return
       this.selectedId = unit.id
       this.abilityMode = false
-      audioDirector.play('select')
+      audioDirector.playSelect(unit.id)
       this.refreshSelection()
       return
     }
@@ -434,7 +434,7 @@ export class BattleScene extends Phaser.Scene {
     attacker.acted = true
     attacker.moved = true
     this.abilityMode = false
-    audioDirector.play(power ? 'ability' : 'hit')
+    audioDirector.playAttack(attacker.id, attacker.role, power !== undefined)
     this.animateAttack(attacker, target)
     this.selectedId = undefined
     this.refreshSelection()
@@ -449,7 +449,7 @@ export class BattleScene extends Phaser.Scene {
       victims.forEach((victim) => this.applyDamage(victim, attacker.ability.power))
       attacker.acted = true
       attacker.moved = true
-      audioDirector.play('ability')
+      audioDirector.playAttack(attacker.id, attacker.role, true)
       this.flashMessage(`${attacker.ability.name}!`)
       this.selectedId = undefined
       this.abilityMode = false
@@ -536,7 +536,7 @@ export class BattleScene extends Phaser.Scene {
       const damage = this.calculateDamage(enemy, target)
       this.applyDamage(target, damage)
       this.animateAttack(enemy, target)
-      audioDirector.play('hit')
+      audioDirector.playAttack(enemy.id, enemy.role)
       this.time.delayedCall(460, () => {
         if (!this.checkBattleState()) this.runEnemyTurn(index + 1)
       })
@@ -561,7 +561,7 @@ export class BattleScene extends Phaser.Scene {
           const damage = this.calculateDamage(enemy, target)
           this.applyDamage(target, damage)
           this.animateAttack(enemy, target)
-          audioDirector.play('hit')
+          audioDirector.playAttack(enemy.id, enemy.role)
         }
         this.time.delayedCall(420, () => {
           if (!this.checkBattleState()) this.runEnemyTurn(index + 1)
