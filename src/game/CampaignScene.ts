@@ -1,0 +1,323 @@
+import Phaser from 'phaser'
+import { HERO_IDS, STAGES, unitDefinition } from './data'
+import { audioDirector } from './audio'
+import { loadProgress, resetProgress } from './progress'
+import type { BattleResult, CampaignProgress, StageDefinition } from './types'
+
+const COLORS = {
+  ink: 0x0d1715,
+  panel: 0x152621,
+  panelLight: 0x223a32,
+  gold: 0xefc15a,
+  cream: '#f7efd8',
+  muted: '#a8b6aa',
+  sea: 0x183b3d,
+  land: 0x637f58,
+  landDark: 0x3f5c45,
+}
+
+export class CampaignScene extends Phaser.Scene {
+  private selectedStage = 0
+  private progress: CampaignProgress = { unlockedStage: 0, stars: {} }
+
+  constructor() {
+    super('campaign')
+  }
+
+  preload(): void {
+    HERO_IDS.forEach((id) => this.load.image(`portrait-${id}`, `${import.meta.env.BASE_URL}portraits/${id}.png`))
+  }
+
+  init(data?: { result?: BattleResult }): void {
+    this.progress = loadProgress()
+    this.selectedStage = Math.min(this.progress.unlockedStage, STAGES.length - 1)
+    if (data?.result) this.selectedStage = STAGES.findIndex((stage) => stage.id === data.result?.stageId)
+  }
+
+  create(data?: { result?: BattleResult }): void {
+    const width = this.scale.width
+    const height = this.scale.height
+    this.cameras.main.setBackgroundColor(COLORS.ink)
+    this.drawWorld(width, height)
+    this.drawHeader(width)
+    this.drawCampaignRoute(width, height)
+    this.drawStagePanel(STAGES[this.selectedStage], width, height)
+    this.drawRoster(width, height)
+
+    if (data?.result) this.showResult(data.result, width, height)
+
+    this.input.once('pointerdown', () => {
+      void audioDirector.unlock().then(() => audioDirector.startMusic('campaign'))
+    })
+    audioDirector.startMusic('campaign')
+  }
+
+  private drawWorld(width: number, height: number): void {
+    const graphics = this.add.graphics()
+    graphics.fillStyle(COLORS.sea, 1)
+    graphics.fillRect(0, 0, width, height)
+
+    for (let i = 0; i < 40; i += 1) {
+      const x = (i * 97) % width
+      const y = 80 + ((i * 53) % Math.max(100, height - 120))
+      graphics.lineStyle(1, 0x8fb9ad, 0.12)
+      graphics.beginPath()
+      graphics.moveTo(x, y)
+      graphics.lineTo(Math.min(width, x + 32), y + 3)
+      graphics.strokePath()
+    }
+
+    const landLeft = width < 700 ? -width * 0.25 : width * 0.03
+    graphics.fillStyle(COLORS.landDark, 1)
+    graphics.beginPath()
+    graphics.moveTo(landLeft, height)
+    graphics.lineTo(width * 0.02, height * 0.39)
+    graphics.lineTo(width * 0.2, height * 0.18)
+    graphics.lineTo(width * 0.48, height * 0.12)
+    graphics.lineTo(width * 0.76, height * 0.2)
+    graphics.lineTo(width * 0.9, height * 0.5)
+    graphics.lineTo(width * 0.83, height)
+    graphics.closePath()
+    graphics.fillPath()
+
+    graphics.fillStyle(COLORS.land, 1)
+    graphics.beginPath()
+    graphics.moveTo(landLeft, height)
+    graphics.lineTo(width * 0.08, height * 0.44)
+    graphics.lineTo(width * 0.24, height * 0.24)
+    graphics.lineTo(width * 0.51, height * 0.18)
+    graphics.lineTo(width * 0.72, height * 0.26)
+    graphics.lineTo(width * 0.82, height * 0.53)
+    graphics.lineTo(width * 0.73, height)
+    graphics.closePath()
+    graphics.fillPath()
+
+    graphics.fillStyle(0x28413b, 0.6)
+    for (let i = 0; i < 18; i += 1) {
+      const x = width * (0.12 + ((i * 0.139) % 0.58))
+      const y = height * (0.28 + ((i * 0.173) % 0.55))
+      graphics.fillTriangle(x, y + 18, x + 12, y - 6, x + 24, y + 18)
+      graphics.fillTriangle(x + 12, y + 18, x + 24, y - 1, x + 36, y + 18)
+    }
+
+    graphics.fillStyle(0xa1b977, 0.35)
+    graphics.fillEllipse(width * 0.35, height * 0.66, width * 0.24, height * 0.14)
+    graphics.fillStyle(0xd0b76a, 0.24)
+    graphics.fillEllipse(width * 0.58, height * 0.43, width * 0.2, height * 0.1)
+  }
+
+  private drawHeader(width: number): void {
+    this.add.rectangle(0, 0, width, 84, COLORS.ink, 0.88).setOrigin(0)
+    this.add.text(28, 18, 'WARLORDS OF TAKAO', {
+      fontFamily: 'Spectral, Georgia, serif',
+      fontSize: width < 600 ? '23px' : '31px',
+      fontStyle: 'bold',
+      color: COLORS.cream,
+    })
+    this.add.text(30, width < 600 ? 50 : 56, 'THE SALTWIND CHRONICLE', {
+      fontSize: '10px',
+      color: '#efc15a',
+      letterSpacing: 2,
+    })
+
+    this.createTextButton(width - 74, 20, 48, 42, audioDirector.isMuted() ? 'MUTE' : 'SOUND', () => {
+      audioDirector.setMuted(!audioDirector.isMuted())
+      this.scene.restart()
+    })
+  }
+
+  private drawCampaignRoute(width: number, height: number): void {
+    const landscape = width >= 700
+    const mapWidth = landscape ? width * 0.72 : width
+    const mapTop = 84
+    const mapBottom = landscape ? height : height * 0.62
+    const mapHeight = mapBottom - mapTop
+    const route = this.add.graphics()
+    route.lineStyle(6, 0x17251f, 0.55)
+    route.beginPath()
+
+    STAGES.forEach((stage, index) => {
+      const point = this.stagePoint(stage, mapWidth, mapTop, mapHeight)
+      if (index === 0) route.moveTo(point.x, point.y)
+      else route.lineTo(point.x, point.y)
+    })
+    route.strokePath()
+    route.lineStyle(2, COLORS.gold, 0.6)
+    route.strokePath()
+
+    STAGES.forEach((stage, index) => {
+      const point = this.stagePoint(stage, mapWidth, mapTop, mapHeight)
+      const unlocked = index <= this.progress.unlockedStage
+      const selected = index === this.selectedStage
+      const node = this.add.container(point.x, point.y)
+      const halo = this.add.circle(0, 0, selected ? 31 : 25, selected ? COLORS.gold : COLORS.ink, selected ? 0.34 : 0.5)
+      const disc = this.add.circle(0, 0, selected ? 22 : 18, unlocked ? COLORS.panelLight : 0x26302d, 1)
+        .setStrokeStyle(2, unlocked ? COLORS.gold : 0x59615e, 1)
+      const label = this.add.text(0, -1, unlocked ? stage.chapter : '×', {
+        fontFamily: 'Spectral, Georgia, serif',
+        fontSize: selected ? '19px' : '15px',
+        fontStyle: 'bold',
+        color: unlocked ? COLORS.cream : '#717b76',
+      }).setOrigin(0.5)
+      const name = this.add.text(0, 32, stage.name, {
+        fontSize: width < 600 ? '10px' : '12px',
+        fontStyle: 'bold',
+        color: unlocked ? COLORS.cream : '#718079',
+        backgroundColor: '#10201bbd',
+        padding: { x: 6, y: 3 },
+      }).setOrigin(0.5)
+      node.add([halo, disc, label, name])
+      node.setSize(80, 72).setInteractive({ useHandCursor: unlocked })
+      if (unlocked) {
+        node.on('pointerdown', () => {
+          audioDirector.play('select')
+          this.selectedStage = index
+          this.scene.restart()
+        })
+      }
+
+      const stars = this.progress.stars[stage.id] ?? 0
+      if (stars > 0) {
+        this.add.text(point.x, point.y + 53, `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`, {
+          fontSize: '12px',
+          color: '#efc15a',
+        }).setOrigin(0.5)
+      }
+    })
+  }
+
+  private drawStagePanel(stage: StageDefinition, width: number, height: number): void {
+    const landscape = width >= 700
+    const panelX = landscape ? width * 0.72 : 12
+    const panelY = landscape ? 96 : height * 0.63
+    const panelWidth = landscape ? width * 0.28 - 14 : width - 24
+    const panelHeight = landscape ? height - 110 : height * 0.36 - 12
+    this.add.rectangle(panelX, panelY, panelWidth, panelHeight, COLORS.panel, 0.96)
+      .setOrigin(0)
+      .setStrokeStyle(1, 0x789181, 0.35)
+
+    const padding = landscape ? 24 : 16
+    const contentX = panelX + padding
+    let y = panelY + padding
+    this.add.text(contentX, y, `CHAPTER ${stage.chapter}`, {
+      fontSize: '10px', color: '#efc15a', letterSpacing: 2,
+    })
+    y += 21
+    this.add.text(contentX, y, stage.name, {
+      fontFamily: 'Spectral, Georgia, serif',
+      fontSize: landscape ? '25px' : '20px',
+      fontStyle: 'bold',
+      color: COLORS.cream,
+      wordWrap: { width: panelWidth - padding * 2 },
+    })
+    y += landscape ? 37 : 29
+    this.add.text(contentX, y, stage.subtitle, {
+      fontSize: '11px', color: '#a8b6aa', wordWrap: { width: panelWidth - padding * 2 },
+    })
+    y += landscape ? 38 : 26
+    if (landscape || height > 720) {
+      const briefing = this.add.text(contentX, y, stage.briefing, {
+        fontSize: '12px', color: '#d7dfd5', lineSpacing: 5,
+        wordWrap: { width: panelWidth - padding * 2 },
+      })
+      y += briefing.height + 21
+    }
+
+    this.add.text(contentX, y, 'OBJECTIVE', { fontSize: '9px', color: '#efc15a', letterSpacing: 1 })
+    y += 18
+    this.add.text(contentX, y, stage.objectiveLabel, {
+      fontSize: '12px', fontStyle: 'bold', color: COLORS.cream,
+      wordWrap: { width: panelWidth - padding * 2 },
+    })
+    y += landscape ? 45 : 36
+
+    const unlocked = STAGES.indexOf(stage) <= this.progress.unlockedStage
+    const buttonY = Math.min(panelY + panelHeight - 58, y)
+    this.createTextButton(contentX, buttonY, panelWidth - padding * 2, 42, unlocked ? 'DEPLOY REGIMENTS' : 'LOCKED', () => {
+      if (!unlocked) return
+      audioDirector.play('select')
+      audioDirector.stopMusic()
+      this.scene.start('battle', { stageIndex: STAGES.indexOf(stage) })
+    }, !unlocked)
+  }
+
+  private drawRoster(width: number, height: number): void {
+    if (width < 700) return
+    const x = 24
+    const y = height - 94
+    this.add.text(x, y - 24, 'THE SALTWIND COMPANY', { fontSize: '9px', color: '#efc15a', letterSpacing: 2 })
+    HERO_IDS.forEach((id, index) => {
+      const hero = unitDefinition(id)
+      const cx = x + index * 82
+      this.add.circle(cx + 24, y + 24, 25, COLORS.ink, 0.72).setStrokeStyle(2, hero.accent, 0.85)
+      this.add.image(cx + 24, y + 24, `portrait-${id}`).setDisplaySize(44, 44)
+      this.add.text(cx + 24, y + 55, hero.name.split(' ')[0], { fontSize: '9px', color: '#d7dfd5' }).setOrigin(0.5)
+    })
+  }
+
+  private showResult(result: BattleResult, width: number, height: number): void {
+    const overlay = this.add.rectangle(0, 0, width, height, 0x07100e, 0.76).setOrigin(0).setDepth(20)
+    const cardWidth = Math.min(430, width - 32)
+    const cardHeight = 260
+    const x = width / 2
+    const y = height / 2
+    const card = this.add.rectangle(x, y, cardWidth, cardHeight, COLORS.panel, 1)
+      .setStrokeStyle(2, result.victory ? COLORS.gold : 0x9f5449, 1)
+      .setDepth(21)
+    const title = this.add.text(x, y - 88, result.victory ? 'BATTLE WON' : 'REGIMENTS WITHDRAWN', {
+      fontFamily: 'Spectral, Georgia, serif', fontSize: '25px', fontStyle: 'bold', color: COLORS.cream,
+    }).setOrigin(0.5).setDepth(22)
+    const stars = this.add.text(x, y - 37, result.victory ? `${'★'.repeat(result.stars)}${'☆'.repeat(3 - result.stars)}` : '—', {
+      fontSize: '35px', color: '#efc15a',
+    }).setOrigin(0.5).setDepth(22)
+    const detail = this.add.text(x, y + 17, `Rounds ${result.rounds}   ·   Allies fallen ${result.fallenAllies}`, {
+      fontSize: '12px', color: '#bdc9c0',
+    }).setOrigin(0.5).setDepth(22)
+    const close = this.createTextButton(x - 82, y + 68, 164, 42, 'RETURN TO MAP', () => {
+      overlay.destroy()
+      card.destroy()
+      title.destroy()
+      stars.destroy()
+      detail.destroy()
+      close.destroy()
+    })
+    close.setDepth(22)
+  }
+
+  private stagePoint(stage: StageDefinition, mapWidth: number, mapTop: number, mapHeight: number): { x: number; y: number } {
+    return {
+      x: Math.max(48, mapWidth * stage.mapPosition.x),
+      y: mapTop + mapHeight * stage.mapPosition.y,
+    }
+  }
+
+  private createTextButton(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    label: string,
+    onClick: () => void,
+    subtle = false,
+  ): Phaser.GameObjects.Container {
+    const container = this.add.container(x, y)
+    const background = this.add.rectangle(0, 0, width, height, subtle ? 0x26332e : COLORS.gold, subtle ? 0.55 : 1).setOrigin(0)
+    const text = this.add.text(width / 2, height / 2, label, {
+      fontSize: width < 80 ? '8px' : '11px',
+      fontStyle: 'bold',
+      color: subtle ? '#a8b6aa' : '#17211d',
+    }).setOrigin(0.5)
+    container.add([background, text]).setSize(width, height)
+    if (!subtle) {
+      background.setInteractive({ useHandCursor: true })
+      background.on('pointerover', () => background.setFillStyle(0xffd878))
+      background.on('pointerout', () => background.setFillStyle(COLORS.gold))
+      background.on('pointerdown', onClick)
+    }
+    return container
+  }
+}
+
+export function resetCampaignForDebug(): void {
+  resetProgress()
+}

@@ -1,2 +1,46 @@
-# WoT
-Warlords of Takao — an original hex-grid tactical campaign
+# Warlords of Takao
+
+An original, browser-based hex tactics campaign set in a fantasy continent shaped by mountain winds, salt marshes, and a contested harbor.
+
+WoT takes inspiration from the short-session tactical clarity of mobile hex games while using its own setting, cast, maps, abilities, mission rules, visual language, and procedural soundtrack.
+
+## Playable Slice
+
+- Three campaign battles with eliminate, hold, and commander objectives
+- Four asymmetric heroes with one battle-defining ability each
+- Forest, hill, marsh, village, water, and plain terrain rules
+- Move-then-attack turns with deterministic range and path rules
+- Enemy AI that advances, uses terrain, and prioritizes vulnerable targets
+- One-to-three-star ratings for victory, speed, and survival
+- Persistent local campaign progress
+- Responsive desktop and mobile layouts
+- Original procedural music and interaction sound effects via Web Audio
+
+## Run Locally
+
+```bash
+npm install
+npm run dev
+```
+
+Open the URL printed by Vite. Click or tap once to unlock audio in the browser.
+
+## Quality Checks
+
+```bash
+npm test
+npm run build
+npm run test:e2e
+```
+
+## Controls
+
+Select a friendly regiment, choose a highlighted destination, then select an enemy in range. A regiment may move once and attack once per round. Each signature ability can be used once per battle.
+
+## Design Notes
+
+The original game design, source references, combat rules, campaign structure, and content boundaries are documented in [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md).
+
+## License
+
+MIT
