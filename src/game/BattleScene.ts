@@ -1,18 +1,10 @@
 import Phaser from 'phaser'
 import { audioDirector } from './audio'
-import { HERO_IDS, STAGES, unitDefinition } from './data'
+import { STAGES, unitDefinition } from './data'
 import { createHexField, hexDistance, hexKey, reachableHexes, shortestStep } from './hex'
 import { calculateStars, recordResult } from './progress'
+import { registerGeneratedFrames, terrainFrame, unitFrame } from './assets'
 import type { BattleResult, HexCoord, StageDefinition, Terrain, TileDefinition, UnitState } from './types'
-
-const TERRAIN_COLORS: Record<Terrain, number> = {
-  plain: 0x6f875c,
-  forest: 0x365b45,
-  hill: 0x96784d,
-  marsh: 0x506b61,
-  village: 0x9b7954,
-  water: 0x2f6570,
-}
 
 const UI = {
   ink: 0x0c1513,
@@ -27,6 +19,7 @@ const UI = {
 
 const FONT_SANS = '"PingFang TC", "Noto Sans TC", sans-serif'
 const FONT_DISPLAY = '"PingFang TC", "Noto Sans TC", serif'
+const ISO_Y_SCALE = 0.55
 
 const TERRAIN_INFO: Record<Terrain, { name: string; description: string }> = {
   plain: { name: '平原', description: '一般地形，沒有額外加成或懲罰。' },
@@ -90,7 +83,9 @@ export class BattleScene extends Phaser.Scene {
   }
 
   preload(): void {
-    HERO_IDS.forEach((id) => this.load.image(`portrait-${id}`, `${import.meta.env.BASE_URL}portraits/${id}.png`))
+    this.load.image('allies-sheet', `${import.meta.env.BASE_URL}assets/generated/allies-sheet.png`)
+    this.load.image('enemies-sheet', `${import.meta.env.BASE_URL}assets/generated/enemies-sheet.png`)
+    this.load.image('terrain-sheet', `${import.meta.env.BASE_URL}assets/generated/terrain-sheet.png`)
   }
 
   init(data: { stageIndex: number }): void {
@@ -109,6 +104,7 @@ export class BattleScene extends Phaser.Scene {
 
   create(): void {
     this.layout = this.calculateLayout()
+    registerGeneratedFrames(this.textures)
     this.tiles = createHexField(this.stage.width, this.stage.height, this.stage.terrain)
     this.tileMap = new Map(this.tiles.map((tile) => [hexKey(tile), tile]))
     this.units = this.createUnits()
@@ -141,7 +137,7 @@ export class BattleScene extends Phaser.Scene {
     const boardWidth = portrait ? width - 20 : panelX - 26
     const boardHeight = portrait ? panelY - top - 10 : height - top - 14
     const sizeByWidth = boardWidth / (Math.sqrt(3) * (this.stage.width + this.stage.height / 2 + 0.2))
-    const sizeByHeight = boardHeight / (1.5 * Math.max(1, this.stage.height - 1) + 2)
+    const sizeByHeight = boardHeight / (1.5 * ISO_Y_SCALE * Math.max(1, this.stage.height - 1) + 2.7)
     const hexSize = Math.max(19, Math.min(48, sizeByWidth, sizeByHeight))
 
     return { width, height, portrait, panelX, panelY, panelWidth, panelHeight, boardX, boardY, boardWidth, boardHeight, hexSize }
@@ -183,57 +179,26 @@ export class BattleScene extends Phaser.Scene {
   private drawBoard(): void {
     for (const tile of this.tiles) {
       const center = this.hexCenter(tile)
-      this.add.polygon(center.x, center.y, this.hexPoints(this.layout.hexSize), TERRAIN_COLORS[tile.terrain], tile.terrain === 'water' ? 0.92 : 1)
-        .setStrokeStyle(2, 0x17251f, 0.62)
+      this.add.image(center.x, center.y - this.layout.hexSize * 0.55, 'terrain-sheet', terrainFrame(tile.terrain))
+        .setDisplaySize(this.layout.hexSize * 2.35, this.layout.hexSize * 2.35)
+        .setDepth(1 + center.y / 10_000)
       const hitWidth = Math.sqrt(3) * this.layout.hexSize
-      const hitHeight = this.layout.hexSize * 2
+      const hitHeight = this.layout.hexSize * 2 * ISO_Y_SCALE
       const hitPoints = this.hexPoints(this.layout.hexSize).map((value, index) => value + (index % 2 === 0 ? hitWidth / 2 : hitHeight / 2))
       const hitZone = this.add.zone(center.x, center.y, hitWidth, hitHeight)
         .setDepth(4)
         .setInteractive(new Phaser.Geom.Polygon(hitPoints), Phaser.Geom.Polygon.Contains)
       if (hitZone.input) hitZone.input.cursor = tile.terrain === 'water' ? 'help' : 'pointer'
       this.bindTileInteraction(hitZone, tile)
-      this.drawTerrainMark(tile, center)
     }
 
     if (this.stage.objectiveHex) {
       const center = this.hexCenter(this.stage.objectiveHex)
-      this.add.circle(center.x, center.y, this.layout.hexSize * 0.48, UI.gold, 0.13)
+      this.add.ellipse(center.x, center.y, this.layout.hexSize * 0.95, this.layout.hexSize * 0.38, UI.gold, 0.18)
         .setStrokeStyle(3, UI.gold, 0.9)
-      this.add.circle(center.x, center.y, this.layout.hexSize * 0.18, UI.gold, 0.8)
-      this.tweens.add({ targets: this.add.circle(center.x, center.y, this.layout.hexSize * 0.55, UI.gold, 0.08), scale: 1.35, alpha: 0, duration: 1200, repeat: -1 })
-    }
-  }
-
-  private drawTerrainMark(tile: TileDefinition, center: { x: number; y: number }): void {
-    const g = this.add.graphics()
-    const s = this.layout.hexSize
-    if (tile.terrain === 'forest') {
-      g.fillStyle(0x183a2b, 0.9)
-      g.fillTriangle(center.x - s * 0.42, center.y + s * 0.28, center.x - s * 0.18, center.y - s * 0.34, center.x + s * 0.05, center.y + s * 0.28)
-      g.fillTriangle(center.x - s * 0.03, center.y + s * 0.3, center.x + s * 0.2, center.y - s * 0.28, center.x + s * 0.43, center.y + s * 0.3)
-    } else if (tile.terrain === 'hill') {
-      g.lineStyle(3, 0x5f4a2f, 0.8)
-      g.beginPath()
-      g.moveTo(center.x - s * 0.5, center.y + s * 0.2)
-      g.lineTo(center.x, center.y - s * 0.28)
-      g.lineTo(center.x + s * 0.5, center.y + s * 0.2)
-      g.strokePath()
-    } else if (tile.terrain === 'marsh') {
-      g.lineStyle(2, 0xa4c2ae, 0.35)
-      g.lineBetween(center.x - s * 0.45, center.y - 3, center.x + s * 0.28, center.y - 3)
-      g.lineBetween(center.x - s * 0.25, center.y + 7, center.x + s * 0.45, center.y + 7)
-    } else if (tile.terrain === 'village') {
-      g.fillStyle(0x3d3326, 0.9)
-      g.fillRect(center.x - s * 0.22, center.y - 1, s * 0.44, s * 0.32)
-      g.fillStyle(0xd7aa65, 0.95)
-      g.fillTriangle(center.x - s * 0.3, center.y, center.x, center.y - s * 0.32, center.x + s * 0.3, center.y)
-    } else if (tile.terrain === 'water') {
-      g.lineStyle(2, 0xa0d5d5, 0.28)
-      g.beginPath()
-      g.arc(center.x - s * 0.2, center.y, s * 0.22, Math.PI, 0)
-      g.arc(center.x + s * 0.22, center.y, s * 0.22, Math.PI, 0)
-      g.strokePath()
+        .setDepth(3.5)
+      this.add.ellipse(center.x, center.y, this.layout.hexSize * 0.34, this.layout.hexSize * 0.14, UI.gold, 0.82).setDepth(3.6)
+      this.tweens.add({ targets: this.add.ellipse(center.x, center.y, this.layout.hexSize, this.layout.hexSize * 0.4, UI.gold, 0.1).setDepth(3.5), scale: 1.35, alpha: 0, duration: 1200, repeat: -1 })
     }
   }
 
@@ -241,22 +206,16 @@ export class BattleScene extends Phaser.Scene {
     const center = this.hexCenter(unit)
     const s = this.layout.hexSize
     const token = this.add.container(center.x, center.y)
-    const shadow = this.add.ellipse(2, s * 0.38, s * 1.18, s * 0.42, 0x07100d, 0.55)
-    const ring = this.add.circle(0, 0, s * 0.56, unit.side === 'allies' ? UI.ally : UI.enemy, 0.95)
-      .setStrokeStyle(3, unit.accent, 1)
-    const portraitParts: Phaser.GameObjects.GameObject[] = unit.side === 'allies'
-      ? [this.add.image(0, -s * 0.05, `portrait-${unit.id}`).setDisplaySize(s * 0.84, s * 0.84)]
-      : [
-          this.add.circle(0, -s * 0.06, s * 0.41, unit.color, 1),
-          this.add.text(0, -s * 0.08, unit.sigil, {
-            fontFamily: FONT_SANS, fontSize: `${Math.max(14, s * 0.48)}px`, fontStyle: 'bold', color: UI.cream,
-          }).setOrigin(0.5),
-        ]
-    const hpBg = this.add.rectangle(-s * 0.48, s * 0.55, s * 0.96, 5, 0x08110e, 0.9).setOrigin(0).setName('hp-bg')
-    const hpFill = this.add.rectangle(-s * 0.48, s * 0.55, s * 0.96, 5, unit.side === 'allies' ? UI.ally : UI.enemy, 1).setOrigin(0).setName('hp-fill')
-    token.add([shadow, ring, ...portraitParts, hpBg, hpFill])
-      .setSize(s * 1.25, s * 1.25)
-      .setDepth(5)
+    const shadow = this.add.ellipse(2, s * 0.18, s * 1.02, s * 0.3, 0x07100d, 0.52)
+    const ring = this.add.ellipse(0, s * 0.12, s * 1.15, s * 0.4, unit.side === 'allies' ? UI.ally : UI.enemy, 0.34)
+      .setStrokeStyle(3, unit.accent, 0.95)
+    const miniature = this.add.image(0, -s * 0.52, unit.side === 'allies' ? 'allies-sheet' : 'enemies-sheet', unitFrame(unit.id))
+      .setDisplaySize(s * 1.78, s * 1.78)
+    const hpBg = this.add.rectangle(-s * 0.48, s * 0.43, s * 0.96, 6, 0x08110e, 0.92).setOrigin(0).setName('hp-bg')
+    const hpFill = this.add.rectangle(-s * 0.48, s * 0.43, s * 0.96, 6, unit.side === 'allies' ? UI.ally : UI.enemy, 1).setOrigin(0).setName('hp-fill')
+    token.add([shadow, ring, miniature, hpBg, hpFill])
+      .setSize(s * 1.4, s * 1.95)
+      .setDepth(5 + center.y / 10_000)
       .setInteractive({ useHandCursor: true })
     token.on('pointerover', (pointer: Phaser.Input.Pointer) => this.showUnitTooltip(unit, pointer))
     token.on('pointermove', (pointer: Phaser.Input.Pointer) => this.positionTooltip(pointer))
@@ -462,7 +421,9 @@ export class BattleScene extends Phaser.Scene {
     selected.moved = true
     audioDirector.play('move')
     const center = this.hexCenter(tile)
-    this.tweens.add({ targets: this.tokens.get(selected.id), x: center.x, y: center.y, duration: 210, ease: 'Sine.Out' })
+    const token = this.tokens.get(selected.id)
+    token?.setDepth(5 + center.y / 10_000)
+    this.tweens.add({ targets: token, x: center.x, y: center.y, duration: 210, ease: 'Sine.Out' })
     this.refreshSelection()
   }
 
@@ -587,6 +548,7 @@ export class BattleScene extends Phaser.Scene {
     enemy.q = destination.q
     enemy.r = destination.r
     const center = this.hexCenter(destination)
+    this.tokens.get(enemy.id)?.setDepth(5 + center.y / 10_000)
     audioDirector.play('move')
     this.tweens.add({
       targets: this.tokens.get(enemy.id),
@@ -876,12 +838,12 @@ export class BattleScene extends Phaser.Scene {
   private hexCenter(hex: HexCoord): { x: number; y: number } {
     const s = this.layout.hexSize
     const rawWidth = Math.sqrt(3) * s * (this.stage.width + this.stage.height / 2 - 0.5)
-    const rawHeight = s * (1.5 * (this.stage.height - 1) + 2)
+    const rawHeight = s * (1.5 * ISO_Y_SCALE * (this.stage.height - 1) + 2 * ISO_Y_SCALE)
     const offsetX = this.layout.boardX + (this.layout.boardWidth - rawWidth) / 2 + Math.sqrt(3) * s / 2
-    const offsetY = this.layout.boardY + (this.layout.boardHeight - rawHeight) / 2 + s
+    const offsetY = this.layout.boardY + (this.layout.boardHeight - rawHeight) / 2 + s * ISO_Y_SCALE
     return {
       x: offsetX + Math.sqrt(3) * s * (hex.q + hex.r / 2),
-      y: offsetY + 1.5 * s * hex.r,
+      y: offsetY + 1.5 * s * ISO_Y_SCALE * hex.r,
     }
   }
 
@@ -889,7 +851,7 @@ export class BattleScene extends Phaser.Scene {
     const points: number[] = []
     for (let i = 0; i < 6; i += 1) {
       const angle = Phaser.Math.DegToRad(60 * i - 30)
-      points.push(Math.cos(angle) * size, Math.sin(angle) * size)
+      points.push(Math.cos(angle) * size, Math.sin(angle) * size * ISO_Y_SCALE)
     }
     return points
   }

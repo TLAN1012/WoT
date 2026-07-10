@@ -15,6 +15,8 @@ WoT takes inspiration from the short-session tactical clarity of mobile hex game
 - Persistent local campaign progress
 - Responsive desktop and mobile layouts
 - Original procedural music and interaction sound effects via Web Audio
+- Hand-painted isometric terrain and 2D-rendered 3D miniatures generated for this project
+- A complete antique-chart campaign map with illustrated terrain relief
 
 ## Run Locally
 
@@ -40,6 +42,8 @@ Select a friendly regiment, choose a highlighted destination, then select an ene
 ## Design Notes
 
 The original game design, source references, combat rules, campaign structure, and content boundaries are documented in [docs/GAME_DESIGN.md](docs/GAME_DESIGN.md).
+
+The generated asset layout, frame mapping, and art direction are documented in [docs/ART_DIRECTION.md](docs/ART_DIRECTION.md).
 
 ## License
 

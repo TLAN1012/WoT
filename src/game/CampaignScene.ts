@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { HERO_IDS, STAGES, unitDefinition } from './data'
 import { audioDirector } from './audio'
 import { loadProgress, resetProgress } from './progress'
+import { registerAllyFrames, unitFrame } from './assets'
 import type { BattleResult, CampaignProgress, StageDefinition } from './types'
 
 const COLORS = {
@@ -28,7 +29,8 @@ export class CampaignScene extends Phaser.Scene {
   }
 
   preload(): void {
-    HERO_IDS.forEach((id) => this.load.image(`portrait-${id}`, `${import.meta.env.BASE_URL}portraits/${id}.png`))
+    this.load.image('allies-sheet', `${import.meta.env.BASE_URL}assets/generated/allies-sheet.png`)
+    this.load.image('continent-map', `${import.meta.env.BASE_URL}assets/generated/saltwind-continent-map.png`)
   }
 
   init(data?: { result?: BattleResult }): void {
@@ -40,6 +42,7 @@ export class CampaignScene extends Phaser.Scene {
   create(data?: { result?: BattleResult }): void {
     const width = this.scale.width
     const height = this.scale.height
+    registerAllyFrames(this.textures)
     this.cameras.main.setBackgroundColor(COLORS.ink)
     this.drawWorld(width, height)
     this.drawHeader(width)
@@ -57,56 +60,22 @@ export class CampaignScene extends Phaser.Scene {
 
   private drawWorld(width: number, height: number): void {
     const graphics = this.add.graphics()
-    graphics.fillStyle(COLORS.sea, 1)
+    graphics.fillStyle(0x665538, 1)
     graphics.fillRect(0, 0, width, height)
-
-    for (let i = 0; i < 40; i += 1) {
-      const x = (i * 97) % width
-      const y = 80 + ((i * 53) % Math.max(100, height - 120))
-      graphics.lineStyle(1, 0x8fb9ad, 0.12)
-      graphics.beginPath()
-      graphics.moveTo(x, y)
-      graphics.lineTo(Math.min(width, x + 32), y + 3)
-      graphics.strokePath()
-    }
-
-    const landLeft = width < 700 ? -width * 0.25 : width * 0.03
-    graphics.fillStyle(COLORS.landDark, 1)
-    graphics.beginPath()
-    graphics.moveTo(landLeft, height)
-    graphics.lineTo(width * 0.02, height * 0.39)
-    graphics.lineTo(width * 0.2, height * 0.18)
-    graphics.lineTo(width * 0.48, height * 0.12)
-    graphics.lineTo(width * 0.76, height * 0.2)
-    graphics.lineTo(width * 0.9, height * 0.5)
-    graphics.lineTo(width * 0.83, height)
-    graphics.closePath()
-    graphics.fillPath()
-
-    graphics.fillStyle(COLORS.land, 1)
-    graphics.beginPath()
-    graphics.moveTo(landLeft, height)
-    graphics.lineTo(width * 0.08, height * 0.44)
-    graphics.lineTo(width * 0.24, height * 0.24)
-    graphics.lineTo(width * 0.51, height * 0.18)
-    graphics.lineTo(width * 0.72, height * 0.26)
-    graphics.lineTo(width * 0.82, height * 0.53)
-    graphics.lineTo(width * 0.73, height)
-    graphics.closePath()
-    graphics.fillPath()
-
-    graphics.fillStyle(0x28413b, 0.6)
-    for (let i = 0; i < 18; i += 1) {
-      const x = width * (0.12 + ((i * 0.139) % 0.58))
-      const y = height * (0.28 + ((i * 0.173) % 0.55))
-      graphics.fillTriangle(x, y + 18, x + 12, y - 6, x + 24, y + 18)
-      graphics.fillTriangle(x + 12, y + 18, x + 24, y - 1, x + 36, y + 18)
-    }
-
-    graphics.fillStyle(0xa1b977, 0.35)
-    graphics.fillEllipse(width * 0.35, height * 0.66, width * 0.24, height * 0.14)
-    graphics.fillStyle(0xd0b76a, 0.24)
-    graphics.fillEllipse(width * 0.58, height * 0.43, width * 0.2, height * 0.1)
+    const landscape = width >= 700
+    const mapWidth = landscape ? width * 0.72 : width
+    const mapTop = 84
+    const mapBottom = landscape ? height : height * 0.62
+    const mapHeight = mapBottom - mapTop
+    const source = this.textures.get('continent-map').getSourceImage() as HTMLImageElement
+    const scale = Math.min(mapWidth / source.width, mapHeight / source.height)
+    const displayWidth = source.width * scale
+    const displayHeight = source.height * scale
+    this.add.image(mapWidth / 2, mapTop + mapHeight / 2, 'continent-map')
+      .setDisplaySize(displayWidth, displayHeight)
+      .setAlpha(0.98)
+    graphics.lineStyle(1, 0xd8bd78, 0.32)
+    graphics.strokeRect((mapWidth - displayWidth) / 2, mapTop + (mapHeight - displayHeight) / 2, displayWidth, displayHeight)
   }
 
   private drawHeader(width: number): void {
@@ -255,7 +224,7 @@ export class CampaignScene extends Phaser.Scene {
       const hero = unitDefinition(id)
       const cx = x + index * 82
       this.add.circle(cx + 24, y + 24, 25, COLORS.ink, 0.72).setStrokeStyle(2, hero.accent, 0.85)
-      this.add.image(cx + 24, y + 24, `portrait-${id}`).setDisplaySize(44, 44)
+      this.add.image(cx + 24, y + 22, 'allies-sheet', unitFrame(id)).setDisplaySize(58, 58)
       this.add.text(cx + 24, y + 55, hero.name, { fontFamily: FONT_SANS, fontSize: '11px', color: '#d7dfd5' }).setOrigin(0.5)
     })
   }
