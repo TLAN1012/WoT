@@ -17,6 +17,7 @@ const game = new Phaser.Game({
     antialias: true,
     pixelArt: false,
     roundPixels: true,
+    preserveDrawingBuffer: true,
   },
   input: {
     activePointers: 3,

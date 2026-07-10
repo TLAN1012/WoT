@@ -54,6 +54,22 @@ async function hexPoint(page: Page, q: number, r: number): Promise<{ x: number; 
   }, { q, r })
 }
 
+async function tooltipText(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const scene = window.__WOT_GAME__.scene.getScene('battle') as unknown as {
+      tooltip?: { list: Array<{ text?: string }> }
+    }
+    return scene.tooltip?.list.map((item) => item.text ?? '').join('\n') ?? ''
+  })
+}
+
+async function isLongPressTriggered(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const scene = window.__WOT_GAME__.scene.getScene('battle') as unknown as { longPressTriggered: boolean }
+    return scene.longPressTriggered
+  })
+}
+
 test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
@@ -64,14 +80,26 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   expect(await activeScene(page)).toBe('campaign')
   await page.screenshot({ path: 'test-results/wot-desktop-campaign.png' })
 
-  await page.locator('canvas').click({ position: { x: 1100, y: 368 } })
+  await page.locator('canvas').click({ position: { x: 1100, y: 360 } })
   await expect.poll(() => activeScene(page)).toBe('battle')
   await page.waitForTimeout(250)
   const battle = await assertPlayableCanvas(page)
   await page.screenshot({ path: 'test-results/wot-desktop-battle.png' })
   expect(battle.equals(campaign)).toBe(false)
-  await page.locator('canvas').click({ position: { x: 217, y: 359 } })
+  const forest = await hexPoint(page, 2, 1)
+  await page.mouse.move(forest.x, forest.y)
+  await expect.poll(() => tooltipText(page)).toContain('森林')
+  await page.waitForTimeout(120)
+  await page.screenshot({ path: 'test-results/wot-desktop-tooltip.png' })
+  const yao = await hexPoint(page, 0, 2)
+  await page.mouse.move(yao.x, yao.y)
+  await expect.poll(() => tooltipText(page)).toContain('友軍 · 姚仁')
+  await expect.poll(() => tooltipText(page)).toContain('防波壁')
+  await page.screenshot({ path: 'test-results/wot-desktop-unit-tooltip.png' })
+  await page.locator('canvas').click({ position: yao })
   await expect.poll(() => selectedUnit(page)).toBe('yao')
+  await page.mouse.move(800, 700)
+  await page.waitForTimeout(120)
   await page.screenshot({ path: 'test-results/wot-desktop-selected.png' })
   const destination = await hexPoint(page, 1, 1)
   await page.locator('canvas').click({ position: destination })
@@ -90,14 +118,32 @@ test('mobile portrait campaign and battle remain painted', async ({ page }) => {
   expect(await activeScene(page)).toBe('campaign')
   await page.screenshot({ path: 'test-results/wot-mobile-campaign.png' })
 
-  await page.locator('canvas').click({ position: { x: 195, y: 767 } })
+  await page.locator('canvas').click({ position: { x: 195, y: 759 } })
   await expect.poll(() => activeScene(page)).toBe('battle')
   await page.waitForTimeout(250)
   const battle = await assertPlayableCanvas(page)
   await page.screenshot({ path: 'test-results/wot-mobile-battle.png' })
   expect(battle.equals(campaign)).toBe(false)
-  await page.locator('canvas').click({ position: { x: 78, y: 359 } })
+  const forest = await hexPoint(page, 2, 1)
+  await page.mouse.move(forest.x, forest.y)
+  await page.mouse.down()
+  await page.waitForTimeout(520)
+  expect(await isLongPressTriggered(page)).toBe(true)
+  expect(await tooltipText(page)).toContain('森林')
+  await page.screenshot({ path: 'test-results/wot-mobile-tooltip.png' })
+  await page.mouse.up()
+  const yao = await hexPoint(page, 0, 2)
+  await page.mouse.move(yao.x, yao.y)
+  await page.mouse.down()
+  await page.waitForTimeout(520)
+  expect(await isLongPressTriggered(page)).toBe(true)
+  expect(await tooltipText(page)).toContain('友軍 · 姚仁')
+  expect(await selectedUnit(page)).toBe('')
+  await page.mouse.up()
+  await page.locator('canvas').click({ position: yao })
   await expect.poll(() => selectedUnit(page)).toBe('yao')
+  await page.mouse.move(380, 120)
+  await page.waitForTimeout(120)
   await page.screenshot({ path: 'test-results/wot-mobile-selected.png' })
   expect(errors).toEqual([])
 })

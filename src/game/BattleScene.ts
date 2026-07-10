@@ -25,6 +25,28 @@ const UI = {
   enemy: 0xe36f58,
 }
 
+const FONT_SANS = '"PingFang TC", "Noto Sans TC", sans-serif'
+const FONT_DISPLAY = '"PingFang TC", "Noto Sans TC", serif'
+
+const TERRAIN_INFO: Record<Terrain, { name: string; description: string }> = {
+  plain: { name: '平原', description: '一般地形，沒有額外加成或懲罰。' },
+  forest: { name: '森林', description: '提供掩護，受到的一般攻擊傷害降低 35%。' },
+  hill: { name: '高地', description: '攻擊低處目標時，造成的傷害提高 25%。' },
+  marsh: { name: '沼澤', description: '進入後立刻停止移動，受到的一般攻擊傷害提高 20%。' },
+  village: { name: '村落', description: '新回合開始時，恢復最大生命值的 12%。' },
+  water: { name: '水域', description: '地面單位無法進入。' },
+}
+
+const ROLE_LABELS: Record<UnitState['role'], string> = {
+  vanguard: '前衛',
+  ranger: '射手',
+  mystic: '術士',
+  skirmisher: '游擊兵',
+  raider: '掠兵',
+  artillery: '遠程兵',
+  commander: '指揮官',
+}
+
 interface BattleLayout {
   width: number
   height: number
@@ -59,6 +81,9 @@ export class BattleScene extends Phaser.Scene {
   private detailObjects: Phaser.GameObjects.GameObject[] = []
   private phaseText?: Phaser.GameObjects.Text
   private objectiveText?: Phaser.GameObjects.Text
+  private tooltip?: Phaser.GameObjects.Container
+  private longPressTimer?: Phaser.Time.TimerEvent
+  private longPressTriggered = false
 
   constructor() {
     super('battle')
@@ -106,9 +131,9 @@ export class BattleScene extends Phaser.Scene {
     const width = this.scale.width
     const height = this.scale.height
     const portrait = width < 720
-    const top = portrait ? 116 : 86
-    const panelWidth = portrait ? width - 20 : Math.min(300, width * 0.25)
-    const panelHeight = portrait ? Math.min(190, height * 0.25) : height - top - 12
+    const top = portrait ? 126 : 94
+    const panelWidth = portrait ? width - 20 : Math.min(330, width * 0.27)
+    const panelHeight = portrait ? Math.min(210, height * 0.27) : height - top - 12
     const panelX = portrait ? 10 : width - panelWidth - 10
     const panelY = portrait ? height - panelHeight - 10 : top
     const boardX = portrait ? 10 : 16
@@ -158,10 +183,16 @@ export class BattleScene extends Phaser.Scene {
   private drawBoard(): void {
     for (const tile of this.tiles) {
       const center = this.hexCenter(tile)
-      const polygon = this.add.polygon(center.x, center.y, this.hexPoints(this.layout.hexSize), TERRAIN_COLORS[tile.terrain], tile.terrain === 'water' ? 0.92 : 1)
+      this.add.polygon(center.x, center.y, this.hexPoints(this.layout.hexSize), TERRAIN_COLORS[tile.terrain], tile.terrain === 'water' ? 0.92 : 1)
         .setStrokeStyle(2, 0x17251f, 0.62)
-        .setInteractive({ useHandCursor: tile.terrain !== 'water' })
-      polygon.on('pointerdown', () => this.handleTileClick(tile))
+      const hitWidth = Math.sqrt(3) * this.layout.hexSize
+      const hitHeight = this.layout.hexSize * 2
+      const hitPoints = this.hexPoints(this.layout.hexSize).map((value, index) => value + (index % 2 === 0 ? hitWidth / 2 : hitHeight / 2))
+      const hitZone = this.add.zone(center.x, center.y, hitWidth, hitHeight)
+        .setDepth(4)
+        .setInteractive(new Phaser.Geom.Polygon(hitPoints), Phaser.Geom.Polygon.Contains)
+      if (hitZone.input) hitZone.input.cursor = tile.terrain === 'water' ? 'help' : 'pointer'
+      this.bindTileInteraction(hitZone, tile)
       this.drawTerrainMark(tile, center)
     }
 
@@ -218,7 +249,7 @@ export class BattleScene extends Phaser.Scene {
       : [
           this.add.circle(0, -s * 0.06, s * 0.41, unit.color, 1),
           this.add.text(0, -s * 0.08, unit.sigil, {
-            fontSize: `${Math.max(13, s * 0.48)}px`, fontStyle: 'bold', color: UI.cream,
+            fontFamily: FONT_SANS, fontSize: `${Math.max(14, s * 0.48)}px`, fontStyle: 'bold', color: UI.cream,
           }).setOrigin(0.5),
         ]
     const hpBg = this.add.rectangle(-s * 0.48, s * 0.55, s * 0.96, 5, 0x08110e, 0.9).setOrigin(0).setName('hp-bg')
@@ -227,25 +258,49 @@ export class BattleScene extends Phaser.Scene {
       .setSize(s * 1.25, s * 1.25)
       .setDepth(5)
       .setInteractive({ useHandCursor: true })
-    token.on('pointerdown', () => this.handleUnitClick(unit))
+    token.on('pointerover', (pointer: Phaser.Input.Pointer) => this.showUnitTooltip(unit, pointer))
+    token.on('pointermove', (pointer: Phaser.Input.Pointer) => this.positionTooltip(pointer))
+    token.on('pointerout', () => {
+      this.cancelLongPress()
+      this.hideTooltip()
+    })
+    token.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.longPressTriggered = false
+      this.startLongPress(() => this.showUnitTooltip(unit, pointer))
+    })
+    token.on('pointerup', () => {
+      const wasLongPress = this.longPressTriggered
+      this.cancelLongPress()
+      this.longPressTriggered = false
+      if (!wasLongPress) {
+        this.hideTooltip()
+        this.handleUnitClick(unit)
+      } else {
+        this.time.delayedCall(1600, () => this.hideTooltip())
+      }
+    })
+    token.on('pointerupoutside', () => {
+      this.cancelLongPress()
+      this.longPressTriggered = false
+    })
     this.tokens.set(unit.id, token)
   }
 
   private drawInterface(): void {
     const { width, panelX, panelY, panelWidth, panelHeight, portrait } = this.layout
-    this.add.rectangle(0, 0, width, portrait ? 106 : 76, UI.ink, 0.96).setOrigin(0).setDepth(10)
-    this.add.text(18, 13, `CHAPTER ${this.stage.chapter} · ${this.stage.name.toUpperCase()}`, {
-      fontFamily: 'Spectral, Georgia, serif',
-      fontSize: portrait ? '17px' : '22px',
+    this.add.rectangle(0, 0, width, portrait ? 116 : 84, UI.ink, 0.96).setOrigin(0).setDepth(10)
+    this.add.text(18, 12, `第 ${this.stage.chapter} 章 · ${this.stage.name}`, {
+      fontFamily: FONT_DISPLAY,
+      fontSize: portrait ? '21px' : '26px',
       fontStyle: 'bold',
       color: UI.cream,
     }).setDepth(11)
-    this.objectiveText = this.add.text(20, portrait ? 55 : 45, this.objectiveStatus(), {
-      fontSize: portrait ? '10px' : '11px', color: '#b9c8bd',
-      wordWrap: { width: portrait ? width - 32 : Math.max(250, width * 0.5) },
+    this.objectiveText = this.add.text(20, portrait ? 59 : 50, this.objectiveStatus(), {
+      fontFamily: FONT_SANS, fontSize: portrait ? '12px' : '13px', color: '#b9c8bd',
+      wordWrap: { width: portrait ? width - 32 : Math.max(250, width * 0.5), useAdvancedWrap: true },
     }).setDepth(11)
-    this.phaseText = this.add.text(portrait ? 20 : width - 18, portrait ? 39 : 15, 'ROUND 1 · YOUR MOVE', {
-      fontSize: portrait ? '10px' : '12px', fontStyle: 'bold', color: '#efc15a',
+    this.phaseText = this.add.text(portrait ? 20 : width - 18, portrait ? 42 : 16, '第 1 回合 · 我方行動', {
+      fontFamily: FONT_SANS, fontSize: portrait ? '12px' : '14px', fontStyle: 'bold', color: '#efc15a',
     }).setOrigin(portrait ? 0 : 1, 0).setDepth(11)
 
     this.add.rectangle(panelX, panelY, panelWidth, panelHeight, UI.panel, 0.97)
@@ -254,24 +309,120 @@ export class BattleScene extends Phaser.Scene {
       .setDepth(8)
 
     const buttonWidth = portrait ? Math.min(124, (width - 40) / 3) : panelWidth - 28
-    const actionsY = portrait ? 72 : panelY + panelHeight - 105
+    const actionsY = portrait ? 80 : panelY + panelHeight - 112
     const actionsX = portrait ? 10 : panelX + 14
-    this.createButton(actionsX, actionsY, buttonWidth, 34, 'END TURN', () => this.endPlayerTurn(), 12)
+    this.createButton(actionsX, actionsY, buttonWidth, 36, '結束回合', () => this.endPlayerTurn(), 13)
     this.createButton(
       portrait ? actionsX + buttonWidth + 8 : actionsX,
       portrait ? actionsY : actionsY + 43,
       buttonWidth,
       34,
-      'RETREAT',
+      '撤退',
       () => this.finishBattle(false),
-      12,
+      13,
       true,
     )
     if (portrait) {
-      this.createButton(actionsX + (buttonWidth + 8) * 2, actionsY, buttonWidth, 34, audioDirector.isMuted() ? 'SOUND OFF' : 'SOUND ON', () => {
+      this.createButton(actionsX + (buttonWidth + 8) * 2, actionsY, buttonWidth, 36, audioDirector.isMuted() ? '音效關' : '音效開', () => {
         audioDirector.setMuted(!audioDirector.isMuted())
-      }, 10, true)
+      }, 12, true)
     }
+  }
+
+  private bindTileInteraction(zone: Phaser.GameObjects.Zone, tile: TileDefinition): void {
+    zone.on('pointerover', (pointer: Phaser.Input.Pointer) => this.showTerrainTooltip(tile, pointer))
+    zone.on('pointermove', (pointer: Phaser.Input.Pointer) => this.positionTooltip(pointer))
+    zone.on('pointerout', () => {
+      this.cancelLongPress()
+      this.hideTooltip()
+    })
+    zone.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      this.longPressTriggered = false
+      this.startLongPress(() => this.showTerrainTooltip(tile, pointer))
+    })
+    zone.on('pointerup', () => {
+      const wasLongPress = this.longPressTriggered
+      this.cancelLongPress()
+      this.longPressTriggered = false
+      if (!wasLongPress) {
+        this.hideTooltip()
+        this.handleTileClick(tile)
+      } else {
+        this.time.delayedCall(1600, () => this.hideTooltip())
+      }
+    })
+    zone.on('pointerupoutside', () => {
+      this.cancelLongPress()
+      this.longPressTriggered = false
+    })
+  }
+
+  private startLongPress(action: () => void): void {
+    this.cancelLongPress()
+    this.longPressTimer = this.time.delayedCall(460, () => {
+      this.longPressTriggered = true
+      action()
+    })
+  }
+
+  private cancelLongPress(): void {
+    this.longPressTimer?.remove(false)
+    this.longPressTimer = undefined
+  }
+
+  private showTerrainTooltip(tile: TileDefinition, pointer: Phaser.Input.Pointer): void {
+    const info = TERRAIN_INFO[tile.terrain]
+    this.showTooltip(`地形 · ${info.name}`, info.description, pointer)
+  }
+
+  private showUnitTooltip(unit: UnitState, pointer: Phaser.Input.Pointer): void {
+    const camp = unit.side === 'allies' ? '友軍' : '敵軍'
+    const body = [
+      `${unit.title} · ${ROLE_LABELS[unit.role]}`,
+      `生命 ${Math.max(0, unit.hp)}/${unit.maxHp}　攻擊 ${unit.attack}　護甲 ${unit.armor}`,
+      `移動 ${unit.move} 格　射程 ${unit.range} 格`,
+      `技能「${unit.ability.name}」：${unit.ability.description}`,
+    ].join('\n')
+    this.showTooltip(`${camp} · ${unit.name}`, body, pointer)
+  }
+
+  private showTooltip(title: string, body: string, pointer: Phaser.Input.Pointer): void {
+    this.hideTooltip()
+    const width = Math.min(this.layout.portrait ? this.layout.width - 24 : 340, 340)
+    const padding = 14
+    const titleText = this.add.text(padding, padding, title, {
+      fontFamily: FONT_SANS, fontSize: '16px', fontStyle: 'bold', color: '#efc15a',
+    })
+    const bodyText = this.add.text(padding, 43, body, {
+      fontFamily: FONT_SANS, fontSize: '13px', color: '#edf2ed', lineSpacing: 6,
+      wordWrap: { width: width - padding * 2, useAdvancedWrap: true },
+    })
+    const height = bodyText.y + bodyText.height + padding
+    const background = this.add.rectangle(0, 0, width, height, 0x0a1512, 0.97)
+      .setOrigin(0)
+      .setStrokeStyle(2, UI.gold, 0.82)
+    this.tooltip = this.add.container(0, 0, [background, titleText, bodyText]).setDepth(40)
+    this.tooltip.setData('width', width)
+    this.tooltip.setData('height', height)
+    this.positionTooltip(pointer)
+  }
+
+  private positionTooltip(pointer: Phaser.Input.Pointer): void {
+    if (!this.tooltip) return
+    const width = this.tooltip.getData('width') as number
+    const height = this.tooltip.getData('height') as number
+    if (this.layout.portrait) {
+      this.tooltip.setPosition(12, 122)
+      return
+    }
+    const x = Phaser.Math.Clamp(pointer.x + 18, 10, this.layout.width - width - 10)
+    const y = Phaser.Math.Clamp(pointer.y + 18, 92, this.layout.height - height - 10)
+    this.tooltip.setPosition(x, y)
+  }
+
+  private hideTooltip(): void {
+    this.tooltip?.destroy(true)
+    this.tooltip = undefined
   }
 
   private handleUnitClick(unit: UnitState): void {
@@ -291,7 +442,7 @@ export class BattleScene extends Phaser.Scene {
     if (!selected || selected.acted) return
     const range = this.abilityMode ? selected.ability.range : selected.range
     if (hexDistance(selected, unit) > range) {
-      this.flashMessage('Target is out of range')
+      this.flashMessage('目標超出攻擊範圍')
       return
     }
 
@@ -355,12 +506,12 @@ export class BattleScene extends Phaser.Scene {
     unit.moved = true
     if (unit.ability.kind === 'guard') {
       unit.guardTurns = 2
-      this.flashMessage(`${unit.name} raises the Breakwater`)
+      this.flashMessage(`${unit.name}展開防波壁`)
     } else if (unit.ability.kind === 'heal') {
       this.units
         .filter((candidate) => candidate.side === unit.side && candidate.hp > 0 && hexDistance(candidate, unit) <= unit.ability.range)
         .forEach((candidate) => this.applyHealing(candidate, unit.ability.power))
-      this.flashMessage('The Returning Current restores the line')
+      this.flashMessage('回流恢復了友軍生命')
     }
     audioDirector.play('ability')
     this.selectedId = undefined
@@ -400,7 +551,7 @@ export class BattleScene extends Phaser.Scene {
     this.selectedId = undefined
     this.abilityMode = false
     this.clearHighlights()
-    this.phaseText?.setText(`ROUND ${this.round} · ENEMY MOVE`).setColor('#e36f58')
+    this.phaseText?.setText(`第 ${this.round} 回合 · 敵方行動`).setColor('#e36f58')
     this.refreshSelection()
     this.time.delayedCall(350, () => this.runEnemyTurn(0))
   }
@@ -471,8 +622,8 @@ export class BattleScene extends Phaser.Scene {
       const terrain = this.tileMap.get(hexKey(unit))?.terrain
       if (terrain === 'village') this.applyHealing(unit, Math.ceil(unit.maxHp * 0.12))
     })
-    this.phaseText?.setText(`ROUND ${this.round} · YOUR MOVE`).setColor('#efc15a')
-    this.flashMessage(`Round ${this.round}`)
+    this.phaseText?.setText(`第 ${this.round} 回合 · 我方行動`).setColor('#efc15a')
+    this.flashMessage(`第 ${this.round} 回合`)
     this.refreshSelection()
   }
 
@@ -523,17 +674,17 @@ export class BattleScene extends Phaser.Scene {
     const banner = this.add.rectangle(width / 2, height / 2, Math.min(460, width - 30), 220, UI.panel, 1)
       .setStrokeStyle(2, result.victory ? UI.gold : UI.enemy, 1)
       .setDepth(31)
-    this.add.text(width / 2, height / 2 - 66, result.victory ? 'VICTORY' : 'DEFEAT', {
-      fontFamily: 'Spectral, Georgia, serif', fontSize: '30px', fontStyle: 'bold', color: UI.cream,
+    this.add.text(width / 2, height / 2 - 66, result.victory ? '戰鬥勝利' : '戰鬥失敗', {
+      fontFamily: FONT_DISPLAY, fontSize: '32px', fontStyle: 'bold', color: UI.cream,
     }).setOrigin(0.5).setDepth(32)
-    this.add.text(width / 2, height / 2 - 18, result.victory ? `${'★'.repeat(result.stars)}${'☆'.repeat(3 - result.stars)}` : 'THE LINE HAS BROKEN', {
-      fontSize: result.victory ? '34px' : '13px', color: result.victory ? '#efc15a' : '#d6b0aa',
+    this.add.text(width / 2, height / 2 - 18, result.victory ? `${'★'.repeat(result.stars)}${'☆'.repeat(3 - result.stars)}` : '我方戰線已被突破', {
+      fontFamily: FONT_SANS, fontSize: result.victory ? '36px' : '15px', color: result.victory ? '#efc15a' : '#d6b0aa',
     }).setOrigin(0.5).setDepth(32)
-    const button = this.createButton(width / 2 - 90, height / 2 + 52, 180, 42, 'CONTINUE', () => {
+    const button = this.createButton(width / 2 - 90, height / 2 + 52, 180, 44, '繼續', () => {
       overlay.destroy()
       banner.destroy()
       this.scene.start('campaign', { result })
-    }, 12)
+    }, 14)
     button.setDepth(32)
   }
 
@@ -558,13 +709,13 @@ export class BattleScene extends Phaser.Scene {
     const maxWidth = this.layout.panelWidth - 36
     const allies = this.units.filter((unit) => unit.side === 'allies' && unit.hp > 0)
     const enemies = this.units.filter((unit) => unit.side === 'enemies' && unit.hp > 0)
-    const title = this.add.text(x, y, 'SALTWIND COMPANY', { fontSize: '11px', fontStyle: 'bold', color: '#efc15a' }).setDepth(9)
-    const roster = allies.map((unit) => `${unit.name.padEnd(10, ' ')} ${unit.hp}/${unit.maxHp}`).join('\n')
+    const title = this.add.text(x, y, '鹽風戰團', { fontFamily: FONT_SANS, fontSize: '15px', fontStyle: 'bold', color: '#efc15a' }).setDepth(9)
+    const roster = allies.map((unit) => `${unit.name}　生命 ${unit.hp}/${unit.maxHp}`).join('\n')
     const body = this.add.text(x, y + 27, roster, {
-      fontSize: '10px', color: '#c3cec6', lineSpacing: 7, wordWrap: { width: maxWidth },
+      fontFamily: FONT_SANS, fontSize: '13px', color: '#c3cec6', lineSpacing: 7, wordWrap: { width: maxWidth, useAdvancedWrap: true },
     }).setDepth(9)
-    const opposition = this.add.text(x, y + (this.layout.portrait ? 82 : 124), `ASH FLEET · ${enemies.length} REGIMENTS`, {
-      fontSize: '9px', fontStyle: 'bold', color: '#e68a77', wordWrap: { width: maxWidth },
+    const opposition = this.add.text(x, y + (this.layout.portrait ? 100 : 144), `灰燼艦隊 · 尚存 ${enemies.length} 支部隊`, {
+      fontFamily: FONT_SANS, fontSize: '12px', fontStyle: 'bold', color: '#e68a77', wordWrap: { width: maxWidth },
     }).setDepth(9)
     this.detailObjects.push(title, body, opposition)
   }
@@ -573,32 +724,32 @@ export class BattleScene extends Phaser.Scene {
     const x = this.layout.panelX + 18
     const y = this.layout.panelY + 16
     const maxWidth = this.layout.panelWidth - 36
-    const name = this.add.text(x, y, unit.name, { fontFamily: 'Spectral, Georgia, serif', fontSize: '18px', fontStyle: 'bold', color: UI.cream }).setDepth(9)
-    const title = this.add.text(x, y + 24, unit.title.toUpperCase(), { fontSize: '8px', color: '#efc15a', letterSpacing: 1 }).setDepth(9)
-    const stats = this.add.text(x, y + 47, `HP ${Math.max(0, unit.hp)}/${unit.maxHp}   ATK ${unit.attack}   ARM ${unit.armor}\nMOVE ${unit.move}   RANGE ${unit.range}`, {
-      fontSize: '10px', color: '#c6d2ca', lineSpacing: 5,
+    const name = this.add.text(x, y, unit.name, { fontFamily: FONT_DISPLAY, fontSize: '21px', fontStyle: 'bold', color: UI.cream }).setDepth(9)
+    const title = this.add.text(x, y + 28, `${unit.title} · ${ROLE_LABELS[unit.role]}`, { fontFamily: FONT_SANS, fontSize: '12px', color: '#efc15a' }).setDepth(9)
+    const stats = this.add.text(x, y + 52, `生命 ${Math.max(0, unit.hp)}/${unit.maxHp}　攻擊 ${unit.attack}　護甲 ${unit.armor}\n移動 ${unit.move} 格　射程 ${unit.range} 格`, {
+      fontFamily: FONT_SANS, fontSize: '13px', color: '#c6d2ca', lineSpacing: 6,
     }).setDepth(9)
     this.detailObjects.push(name, title, stats)
 
     if (unit.side === 'allies' && this.playerPhase && !unit.acted) {
-      const abilityY = this.layout.portrait ? y + 91 : y + 102
-      const ability = this.add.text(x, abilityY, unit.ability.name, { fontSize: '11px', fontStyle: 'bold', color: unit.abilityUsed ? '#69766f' : '#efc15a' }).setDepth(9)
+      const abilityY = this.layout.portrait ? y + 102 : y + 112
+      const ability = this.add.text(x, abilityY, unit.ability.name, { fontFamily: FONT_SANS, fontSize: '14px', fontStyle: 'bold', color: unit.abilityUsed ? '#69766f' : '#efc15a' }).setDepth(9)
       const description = this.add.text(x, abilityY + 18, unit.ability.description, {
-        fontSize: '9px', color: '#9eafa4', wordWrap: { width: maxWidth }, lineSpacing: 3,
+        fontFamily: FONT_SANS, fontSize: '12px', color: '#9eafa4', wordWrap: { width: maxWidth, useAdvancedWrap: true }, lineSpacing: 4,
       }).setDepth(9)
       this.detailObjects.push(ability, description)
 
       const buttonY = this.layout.portrait ? this.layout.panelY + this.layout.panelHeight - 42 : Math.min(this.layout.panelY + this.layout.panelHeight - 156, abilityY + 70)
       const half = (maxWidth - 8) / 2
-      const abilityButton = this.createButton(x, buttonY, half, 32, unit.abilityUsed ? 'USED' : 'ABILITY', () => {
+      const abilityButton = this.createButton(x, buttonY, half, 34, unit.abilityUsed ? '已使用' : '施放技能', () => {
         if (unit.abilityUsed) return
         if (unit.ability.kind === 'guard' || unit.ability.kind === 'heal') this.useImmediateAbility(unit)
         else {
           this.abilityMode = !this.abilityMode
           this.refreshSelection()
         }
-      }, 9, unit.abilityUsed)
-      const waitButton = this.createButton(x + half + 8, buttonY, half, 32, 'WAIT', () => this.waitSelected(), 9, true)
+      }, 12, unit.abilityUsed)
+      const waitButton = this.createButton(x + half + 8, buttonY, half, 34, '待命', () => this.waitSelected(), 12, true)
       this.detailObjects.push(abilityButton, waitButton)
     }
   }
@@ -693,21 +844,21 @@ export class BattleScene extends Phaser.Scene {
   private floatNumber(unit: UnitState, label: string, color: string): void {
     const center = this.hexCenter(unit)
     const text = this.add.text(center.x, center.y - this.layout.hexSize * 0.75, label, {
-      fontSize: '14px', fontStyle: 'bold', color, stroke: '#07100d', strokeThickness: 3,
+      fontFamily: FONT_SANS, fontSize: '16px', fontStyle: 'bold', color, stroke: '#07100d', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(12)
     this.tweens.add({ targets: text, y: text.y - 28, alpha: 0, duration: 650, onComplete: () => text.destroy() })
   }
 
   private flashMessage(message: string): void {
     const text = this.add.text(this.layout.boardX + this.layout.boardWidth / 2, this.layout.boardY + 22, message, {
-      fontSize: '13px', fontStyle: 'bold', color: UI.cream, backgroundColor: '#0b1512d9', padding: { x: 10, y: 6 },
+      fontFamily: FONT_SANS, fontSize: '15px', fontStyle: 'bold', color: UI.cream, backgroundColor: '#0b1512d9', padding: { x: 12, y: 7 },
     }).setOrigin(0.5).setDepth(15)
     this.tweens.add({ targets: text, alpha: 0, y: text.y - 12, delay: 700, duration: 350, onComplete: () => text.destroy() })
   }
 
   private objectiveStatus(): string {
-    if (this.stage.objective === 'hold') return `${this.stage.objectiveLabel} · ${this.holdProgress}/${this.stage.objectiveTurns ?? 2}`
-    return `${this.stage.objectiveLabel} · Limit ${this.stage.roundLimit} rounds`
+    if (this.stage.objective === 'hold') return `${this.stage.objectiveLabel} · 進度 ${this.holdProgress}/${this.stage.objectiveTurns ?? 2}`
+    return `${this.stage.objectiveLabel} · 回合上限 ${this.stage.roundLimit}`
   }
 
   private selectedUnit(): UnitState | undefined {
@@ -757,7 +908,7 @@ export class BattleScene extends Phaser.Scene {
     const background = this.add.rectangle(0, 0, width, height, subtle ? UI.panelLight : UI.gold, 1).setOrigin(0)
       .setStrokeStyle(1, subtle ? 0x708278 : UI.gold, subtle ? 0.55 : 1)
     const text = this.add.text(width / 2, height / 2, label, {
-      fontSize: `${fontSize}px`, fontStyle: 'bold', color: subtle ? '#d1dad3' : '#17211d',
+      fontFamily: FONT_SANS, fontSize: `${fontSize}px`, fontStyle: 'bold', color: subtle ? '#d1dad3' : '#17211d',
     }).setOrigin(0.5)
     container.add([background, text]).setSize(width, height)
     background.setInteractive({ useHandCursor: true })

@@ -1,7 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&family=Spectral:wght@600;700&display=swap');
-
 :root {
-  font-family: 'Noto Sans TC', system-ui, sans-serif;
+  font-family: 'PingFang TC', 'Noto Sans TC', system-ui, sans-serif;
   color: #f6f0df;
   background: #0c1513;
   font-synthesis: none;

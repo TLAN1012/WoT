@@ -16,6 +16,9 @@ const COLORS = {
   landDark: 0x3f5c45,
 }
 
+const FONT_SANS = '"PingFang TC", "Noto Sans TC", sans-serif'
+const FONT_DISPLAY = '"PingFang TC", "Noto Sans TC", serif'
+
 export class CampaignScene extends Phaser.Scene {
   private selectedStage = 0
   private progress: CampaignProgress = { unlockedStage: 0, stars: {} }
@@ -108,19 +111,20 @@ export class CampaignScene extends Phaser.Scene {
 
   private drawHeader(width: number): void {
     this.add.rectangle(0, 0, width, 84, COLORS.ink, 0.88).setOrigin(0)
-    this.add.text(28, 18, 'WARLORDS OF TAKAO', {
-      fontFamily: 'Spectral, Georgia, serif',
-      fontSize: width < 600 ? '23px' : '31px',
+    this.add.text(28, 18, width < 600 ? 'WOT · 打狗戰記' : 'WARLORDS OF TAKAO', {
+      fontFamily: FONT_DISPLAY,
+      fontSize: width < 600 ? '26px' : '34px',
       fontStyle: 'bold',
       color: COLORS.cream,
     })
-    this.add.text(30, width < 600 ? 50 : 56, 'THE SALTWIND CHRONICLE', {
-      fontSize: '10px',
+    this.add.text(30, width < 600 ? 53 : 59, '打狗軍閥 · 鹽風戰紀', {
+      fontFamily: FONT_SANS,
+      fontSize: '12px',
       color: '#efc15a',
       letterSpacing: 2,
     })
 
-    this.createTextButton(width - 74, 20, 48, 42, audioDirector.isMuted() ? 'MUTE' : 'SOUND', () => {
+    this.createTextButton(width - 78, 20, 54, 42, audioDirector.isMuted() ? '靜音' : '音效', () => {
       audioDirector.setMuted(!audioDirector.isMuted())
       this.scene.restart()
     })
@@ -154,13 +158,14 @@ export class CampaignScene extends Phaser.Scene {
       const disc = this.add.circle(0, 0, selected ? 22 : 18, unlocked ? COLORS.panelLight : 0x26302d, 1)
         .setStrokeStyle(2, unlocked ? COLORS.gold : 0x59615e, 1)
       const label = this.add.text(0, -1, unlocked ? stage.chapter : '×', {
-        fontFamily: 'Spectral, Georgia, serif',
-        fontSize: selected ? '19px' : '15px',
+        fontFamily: FONT_DISPLAY,
+        fontSize: selected ? '21px' : '17px',
         fontStyle: 'bold',
         color: unlocked ? COLORS.cream : '#717b76',
       }).setOrigin(0.5)
       const name = this.add.text(0, 32, stage.name, {
-        fontSize: width < 600 ? '10px' : '12px',
+        fontFamily: FONT_SANS,
+        fontSize: width < 600 ? '12px' : '14px',
         fontStyle: 'bold',
         color: unlocked ? COLORS.cream : '#718079',
         backgroundColor: '#10201bbd',
@@ -179,7 +184,7 @@ export class CampaignScene extends Phaser.Scene {
       const stars = this.progress.stars[stage.id] ?? 0
       if (stars > 0) {
         this.add.text(point.x, point.y + 53, `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`, {
-          fontSize: '12px',
+          fontFamily: FONT_SANS, fontSize: '14px',
           color: '#efc15a',
         }).setOrigin(0.5)
       }
@@ -199,41 +204,41 @@ export class CampaignScene extends Phaser.Scene {
     const padding = landscape ? 24 : 16
     const contentX = panelX + padding
     let y = panelY + padding
-    this.add.text(contentX, y, `CHAPTER ${stage.chapter}`, {
-      fontSize: '10px', color: '#efc15a', letterSpacing: 2,
+    this.add.text(contentX, y, `第 ${stage.chapter} 章`, {
+      fontFamily: FONT_SANS, fontSize: '12px', color: '#efc15a', letterSpacing: 2,
     })
     y += 21
     this.add.text(contentX, y, stage.name, {
-      fontFamily: 'Spectral, Georgia, serif',
-      fontSize: landscape ? '25px' : '20px',
+      fontFamily: FONT_DISPLAY,
+      fontSize: landscape ? '29px' : '24px',
       fontStyle: 'bold',
       color: COLORS.cream,
-      wordWrap: { width: panelWidth - padding * 2 },
+      wordWrap: { width: panelWidth - padding * 2, useAdvancedWrap: true },
     })
     y += landscape ? 37 : 29
     this.add.text(contentX, y, stage.subtitle, {
-      fontSize: '11px', color: '#a8b6aa', wordWrap: { width: panelWidth - padding * 2 },
+      fontFamily: FONT_SANS, fontSize: '13px', color: '#a8b6aa', wordWrap: { width: panelWidth - padding * 2, useAdvancedWrap: true },
     })
     y += landscape ? 38 : 26
     if (landscape || height > 720) {
       const briefing = this.add.text(contentX, y, stage.briefing, {
-        fontSize: '12px', color: '#d7dfd5', lineSpacing: 5,
-        wordWrap: { width: panelWidth - padding * 2 },
+        fontFamily: FONT_SANS, fontSize: '14px', color: '#d7dfd5', lineSpacing: 7,
+        wordWrap: { width: panelWidth - padding * 2, useAdvancedWrap: true },
       })
       y += briefing.height + 21
     }
 
-    this.add.text(contentX, y, 'OBJECTIVE', { fontSize: '9px', color: '#efc15a', letterSpacing: 1 })
+    this.add.text(contentX, y, '勝利條件', { fontFamily: FONT_SANS, fontSize: '11px', color: '#efc15a', letterSpacing: 1 })
     y += 18
     this.add.text(contentX, y, stage.objectiveLabel, {
-      fontSize: '12px', fontStyle: 'bold', color: COLORS.cream,
-      wordWrap: { width: panelWidth - padding * 2 },
+      fontFamily: FONT_SANS, fontSize: '14px', fontStyle: 'bold', color: COLORS.cream,
+      wordWrap: { width: panelWidth - padding * 2, useAdvancedWrap: true },
     })
     y += landscape ? 45 : 36
 
     const unlocked = STAGES.indexOf(stage) <= this.progress.unlockedStage
     const buttonY = Math.min(panelY + panelHeight - 58, y)
-    this.createTextButton(contentX, buttonY, panelWidth - padding * 2, 42, unlocked ? 'DEPLOY REGIMENTS' : 'LOCKED', () => {
+    this.createTextButton(contentX, buttonY, panelWidth - padding * 2, 44, unlocked ? '出陣' : '尚未解鎖', () => {
       if (!unlocked) return
       audioDirector.play('select')
       audioDirector.stopMusic()
@@ -245,13 +250,13 @@ export class CampaignScene extends Phaser.Scene {
     if (width < 700) return
     const x = 24
     const y = height - 94
-    this.add.text(x, y - 24, 'THE SALTWIND COMPANY', { fontSize: '9px', color: '#efc15a', letterSpacing: 2 })
+    this.add.text(x, y - 24, '鹽風戰團', { fontFamily: FONT_SANS, fontSize: '12px', color: '#efc15a', letterSpacing: 2 })
     HERO_IDS.forEach((id, index) => {
       const hero = unitDefinition(id)
       const cx = x + index * 82
       this.add.circle(cx + 24, y + 24, 25, COLORS.ink, 0.72).setStrokeStyle(2, hero.accent, 0.85)
       this.add.image(cx + 24, y + 24, `portrait-${id}`).setDisplaySize(44, 44)
-      this.add.text(cx + 24, y + 55, hero.name.split(' ')[0], { fontSize: '9px', color: '#d7dfd5' }).setOrigin(0.5)
+      this.add.text(cx + 24, y + 55, hero.name, { fontFamily: FONT_SANS, fontSize: '11px', color: '#d7dfd5' }).setOrigin(0.5)
     })
   }
 
@@ -264,16 +269,16 @@ export class CampaignScene extends Phaser.Scene {
     const card = this.add.rectangle(x, y, cardWidth, cardHeight, COLORS.panel, 1)
       .setStrokeStyle(2, result.victory ? COLORS.gold : 0x9f5449, 1)
       .setDepth(21)
-    const title = this.add.text(x, y - 88, result.victory ? 'BATTLE WON' : 'REGIMENTS WITHDRAWN', {
-      fontFamily: 'Spectral, Georgia, serif', fontSize: '25px', fontStyle: 'bold', color: COLORS.cream,
+    const title = this.add.text(x, y - 88, result.victory ? '戰鬥勝利' : '部隊撤退', {
+      fontFamily: FONT_DISPLAY, fontSize: '29px', fontStyle: 'bold', color: COLORS.cream,
     }).setOrigin(0.5).setDepth(22)
     const stars = this.add.text(x, y - 37, result.victory ? `${'★'.repeat(result.stars)}${'☆'.repeat(3 - result.stars)}` : '—', {
-      fontSize: '35px', color: '#efc15a',
+      fontFamily: FONT_SANS, fontSize: '38px', color: '#efc15a',
     }).setOrigin(0.5).setDepth(22)
-    const detail = this.add.text(x, y + 17, `Rounds ${result.rounds}   ·   Allies fallen ${result.fallenAllies}`, {
-      fontSize: '12px', color: '#bdc9c0',
+    const detail = this.add.text(x, y + 17, `完成回合 ${result.rounds}　·　我方陣亡 ${result.fallenAllies}`, {
+      fontFamily: FONT_SANS, fontSize: '14px', color: '#bdc9c0',
     }).setOrigin(0.5).setDepth(22)
-    const close = this.createTextButton(x - 82, y + 68, 164, 42, 'RETURN TO MAP', () => {
+    const close = this.createTextButton(x - 82, y + 68, 164, 44, '返回大陸地圖', () => {
       overlay.destroy()
       card.destroy()
       title.destroy()
@@ -303,7 +308,8 @@ export class CampaignScene extends Phaser.Scene {
     const container = this.add.container(x, y)
     const background = this.add.rectangle(0, 0, width, height, subtle ? 0x26332e : COLORS.gold, subtle ? 0.55 : 1).setOrigin(0)
     const text = this.add.text(width / 2, height / 2, label, {
-      fontSize: width < 80 ? '8px' : '11px',
+      fontFamily: FONT_SANS,
+      fontSize: width < 80 ? '11px' : '14px',
       fontStyle: 'bold',
       color: subtle ? '#a8b6aa' : '#17211d',
     }).setOrigin(0.5)
