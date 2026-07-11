@@ -56,6 +56,8 @@ export interface StageDefinition {
   chapter: string
   subtitle: string
   briefing: string
+  victoryText: string
+  defeatText: string
   objective: ObjectiveType
   objectiveLabel: string
   objectiveHex?: HexCoord

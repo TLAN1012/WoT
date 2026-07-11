@@ -15,6 +15,8 @@ WoT takes inspiration from the short-session tactical clarity of mobile hex game
 - Persistent local campaign progress
 - Responsive desktop and mobile layouts
 - Original layered campaign/battle scores, character selection cues, battle cries, and role-specific weapon sounds via Web Audio
+- Full-screen illustrated briefings for all three battles and distinct victory/retreat result scenes
+- More forgiving campaign balance with lower enemy durability and damage plus wider round limits
 - Hand-painted isometric terrain and 2D-rendered 3D miniatures generated for this project
 - A complete antique-chart campaign map with illustrated terrain relief
 
@@ -37,7 +39,7 @@ npm run test:e2e
 
 ## Controls
 
-Select a friendly regiment, choose a highlighted destination, then select an enemy in range. A regiment may move once and attack once per round. Each signature ability can be used once per battle.
+Choose a stage to review its illustrated battle briefing, then begin the tactical map. Select a friendly regiment, choose a highlighted destination, then select an enemy in range. A regiment may move once and attack once per round. Each signature ability can be used once per battle.
 
 ## Design Notes
 

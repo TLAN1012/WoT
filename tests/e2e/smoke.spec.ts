@@ -85,6 +85,11 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   await page.screenshot({ path: 'test-results/wot-desktop-campaign.png' })
 
   await page.locator('canvas').click({ position: { x: 1100, y: 360 } })
+  await expect.poll(() => activeScene(page)).toBe('briefing')
+  const briefing = await assertPlayableCanvas(page)
+  await page.screenshot({ path: 'test-results/wot-desktop-briefing.png' })
+  expect(briefing.equals(campaign)).toBe(false)
+  await page.locator('canvas').click({ position: { x: 1140, y: 682 } })
   await expect.poll(() => activeScene(page)).toBe('battle')
   await page.waitForTimeout(250)
   const battle = await assertPlayableCanvas(page)
@@ -121,6 +126,28 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
 
   await page.locator('canvas').click({ position: { x: 1110, y: 620 } })
   await expect.poll(() => battleSnapshot(page), { timeout: 8_000 }).toMatchObject({ round: 2 })
+
+  await page.evaluate(() => {
+    const battleScene = window.__WOT_GAME__.scene.getScene('battle')
+    battleScene.scene.start('result', {
+      result: { victory: true, stars: 3, rounds: 6, fallenAllies: 0, stageId: 'cinder-gate' },
+    })
+  })
+  await expect.poll(() => activeScene(page)).toBe('result')
+  const victory = await assertPlayableCanvas(page)
+  await page.screenshot({ path: 'test-results/wot-desktop-victory.png' })
+  expect(victory.equals(battle)).toBe(false)
+
+  await page.evaluate(() => {
+    const resultScene = window.__WOT_GAME__.scene.getScene('result')
+    resultScene.scene.restart({
+      result: { victory: false, stars: 0, rounds: 9, fallenAllies: 1, stageId: 'cinder-gate' },
+    })
+  })
+  await expect.poll(() => activeScene(page)).toBe('result')
+  const defeat = await assertPlayableCanvas(page)
+  await page.screenshot({ path: 'test-results/wot-desktop-defeat.png' })
+  expect(defeat.equals(victory)).toBe(false)
   expect(errors).toEqual([])
 })
 
@@ -134,6 +161,11 @@ test('mobile portrait campaign and battle remain painted', async ({ page }) => {
   await page.screenshot({ path: 'test-results/wot-mobile-campaign.png' })
 
   await page.locator('canvas').click({ position: { x: 195, y: 759 } })
+  await expect.poll(() => activeScene(page)).toBe('briefing')
+  const briefing = await assertPlayableCanvas(page)
+  await page.screenshot({ path: 'test-results/wot-mobile-briefing.png' })
+  expect(briefing.equals(campaign)).toBe(false)
+  await page.locator('canvas').click({ position: { x: 195, y: 807 } })
   await expect.poll(() => activeScene(page)).toBe('battle')
   await page.waitForTimeout(250)
   const battle = await assertPlayableCanvas(page)
@@ -160,5 +192,16 @@ test('mobile portrait campaign and battle remain painted', async ({ page }) => {
   await page.mouse.move(380, 120)
   await page.waitForTimeout(120)
   await page.screenshot({ path: 'test-results/wot-mobile-selected.png' })
+
+  await page.evaluate(() => {
+    const battleScene = window.__WOT_GAME__.scene.getScene('battle')
+    battleScene.scene.start('result', {
+      result: { victory: true, stars: 2, rounds: 10, fallenAllies: 1, stageId: 'cinder-gate' },
+    })
+  })
+  await expect.poll(() => activeScene(page)).toBe('result')
+  const result = await assertPlayableCanvas(page)
+  await page.screenshot({ path: 'test-results/wot-mobile-victory.png' })
+  expect(result.equals(battle)).toBe(false)
   expect(errors).toEqual([])
 })

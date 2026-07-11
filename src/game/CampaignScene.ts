@@ -3,7 +3,7 @@ import { HERO_IDS, STAGES, unitDefinition } from './data'
 import { audioDirector } from './audio'
 import { loadProgress, resetProgress } from './progress'
 import { registerAllyFrames, unitFrame } from './assets'
-import type { BattleResult, CampaignProgress, StageDefinition } from './types'
+import type { CampaignProgress, StageDefinition } from './types'
 
 const COLORS = {
   ink: 0x0d1715,
@@ -33,13 +33,12 @@ export class CampaignScene extends Phaser.Scene {
     this.load.image('continent-map', `${import.meta.env.BASE_URL}assets/generated/saltwind-continent-map.png`)
   }
 
-  init(data?: { result?: BattleResult }): void {
+  init(): void {
     this.progress = loadProgress()
     this.selectedStage = Math.min(this.progress.unlockedStage, STAGES.length - 1)
-    if (data?.result) this.selectedStage = STAGES.findIndex((stage) => stage.id === data.result?.stageId)
   }
 
-  create(data?: { result?: BattleResult }): void {
+  create(): void {
     const width = this.scale.width
     const height = this.scale.height
     registerAllyFrames(this.textures)
@@ -49,8 +48,6 @@ export class CampaignScene extends Phaser.Scene {
     this.drawCampaignRoute(width, height)
     this.drawStagePanel(STAGES[this.selectedStage], width, height)
     this.drawRoster(width, height)
-
-    if (data?.result) this.showResult(data.result, width, height)
 
     this.input.once('pointerdown', () => {
       void audioDirector.unlock()
@@ -211,7 +208,7 @@ export class CampaignScene extends Phaser.Scene {
       if (!unlocked) return
       audioDirector.play('select')
       audioDirector.stopMusic()
-      this.scene.start('battle', { stageIndex: STAGES.indexOf(stage) })
+      this.scene.start('briefing', { stageIndex: STAGES.indexOf(stage) })
     }, !unlocked)
   }
 
@@ -227,35 +224,6 @@ export class CampaignScene extends Phaser.Scene {
       this.add.image(cx + 24, y + 22, 'allies-sheet', unitFrame(id)).setDisplaySize(58, 58)
       this.add.text(cx + 24, y + 55, hero.name, { fontFamily: FONT_SANS, fontSize: '11px', color: '#d7dfd5' }).setOrigin(0.5)
     })
-  }
-
-  private showResult(result: BattleResult, width: number, height: number): void {
-    const overlay = this.add.rectangle(0, 0, width, height, 0x07100e, 0.76).setOrigin(0).setDepth(20)
-    const cardWidth = Math.min(430, width - 32)
-    const cardHeight = 260
-    const x = width / 2
-    const y = height / 2
-    const card = this.add.rectangle(x, y, cardWidth, cardHeight, COLORS.panel, 1)
-      .setStrokeStyle(2, result.victory ? COLORS.gold : 0x9f5449, 1)
-      .setDepth(21)
-    const title = this.add.text(x, y - 88, result.victory ? '戰鬥勝利' : '部隊撤退', {
-      fontFamily: FONT_DISPLAY, fontSize: '29px', fontStyle: 'bold', color: COLORS.cream,
-    }).setOrigin(0.5).setDepth(22)
-    const stars = this.add.text(x, y - 37, result.victory ? `${'★'.repeat(result.stars)}${'☆'.repeat(3 - result.stars)}` : '—', {
-      fontFamily: FONT_SANS, fontSize: '38px', color: '#efc15a',
-    }).setOrigin(0.5).setDepth(22)
-    const detail = this.add.text(x, y + 17, `完成回合 ${result.rounds}　·　我方陣亡 ${result.fallenAllies}`, {
-      fontFamily: FONT_SANS, fontSize: '14px', color: '#bdc9c0',
-    }).setOrigin(0.5).setDepth(22)
-    const close = this.createTextButton(x - 82, y + 68, 164, 44, '返回大陸地圖', () => {
-      overlay.destroy()
-      card.destroy()
-      title.destroy()
-      stars.destroy()
-      detail.destroy()
-      close.destroy()
-    })
-    close.setDepth(22)
   }
 
   private stagePoint(stage: StageDefinition, mapWidth: number, mapTop: number, mapHeight: number): { x: number; y: number } {

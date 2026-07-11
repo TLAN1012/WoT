@@ -627,27 +627,7 @@ export class BattleScene extends Phaser.Scene {
       stageId: this.stage.id,
     }
     recordResult(result, this.stageIndex)
-    this.showBattleEnd(result)
-  }
-
-  private showBattleEnd(result: BattleResult): void {
-    const { width, height } = this.layout
-    const overlay = this.add.rectangle(0, 0, width, height, 0x06100d, 0.82).setOrigin(0).setDepth(30)
-    const banner = this.add.rectangle(width / 2, height / 2, Math.min(460, width - 30), 220, UI.panel, 1)
-      .setStrokeStyle(2, result.victory ? UI.gold : UI.enemy, 1)
-      .setDepth(31)
-    this.add.text(width / 2, height / 2 - 66, result.victory ? '戰鬥勝利' : '戰鬥失敗', {
-      fontFamily: FONT_DISPLAY, fontSize: '32px', fontStyle: 'bold', color: UI.cream,
-    }).setOrigin(0.5).setDepth(32)
-    this.add.text(width / 2, height / 2 - 18, result.victory ? `${'★'.repeat(result.stars)}${'☆'.repeat(3 - result.stars)}` : '我方戰線已被突破', {
-      fontFamily: FONT_SANS, fontSize: result.victory ? '36px' : '15px', color: result.victory ? '#efc15a' : '#d6b0aa',
-    }).setOrigin(0.5).setDepth(32)
-    const button = this.createButton(width / 2 - 90, height / 2 + 52, 180, 44, '繼續', () => {
-      overlay.destroy()
-      banner.destroy()
-      this.scene.start('campaign', { result })
-    }, 14)
-    button.setDepth(32)
+    this.scene.start('result', { result })
   }
 
   private refreshSelection(): void {

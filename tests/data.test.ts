@@ -25,4 +25,16 @@ describe('campaign data', () => {
     expect(new Set(heroes.map((hero) => hero.role)).size).toBe(heroes.length)
     expect(new Set(heroes.map((hero) => hero.ability.name)).size).toBe(heroes.length)
   })
+
+  it('ships the easier campaign balance and complete outcome copy', () => {
+    expect(STAGES.map((stage) => stage.roundLimit)).toEqual([14, 14, 12])
+    STAGES.forEach((stage) => {
+      expect(stage.victoryText.length).toBeGreaterThan(20)
+      expect(stage.defeatText.length).toBeGreaterThan(20)
+    })
+
+    const enemies = Object.values(UNIT_DEFINITIONS).filter((unit) => unit.side === 'enemies')
+    expect(Math.max(...enemies.map((unit) => unit.attack))).toBe(28)
+    expect(Math.max(...enemies.map((unit) => unit.maxHp))).toBe(145)
+  })
 })

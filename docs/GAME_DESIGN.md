@@ -80,6 +80,12 @@ Music is generated at runtime with Web Audio and scheduled ahead for stable rhyt
 
 Friendly characters have individual two-note selection cues and distinct vocal pitch profiles. Every attack begins with a short synthesized battle cry, followed by a role-specific melee, bow, tide-magic, or cannon sound. Enemy raiders, guards, artillery, and the commander use the same system with lower, more hostile voice profiles. Movement, abilities, victory, and defeat retain separate cues. All sound is original procedural synthesis; no third-party recording is distributed.
 
+## Campaign Presentation and Difficulty
+
+Every stage opens with a full-screen illustrated briefing containing the battle context, objective, and round limit. Battles end in a dedicated illustrated result scene; victory and retreat use different art, narrative copy, color accents, ratings, and audio cues.
+
+The first playable campaign is tuned for approachability: enemy attack, health, and armor sit below the initial prototype values, while stage round limits are 14, 14, and 12. Fast-clear thresholds are 9, 10, and 9. This keeps terrain and ability decisions relevant without requiring near-perfect play on a first attempt.
+
 ## Source Notes
 
 - InnoGames newsroom, "Warlords of Aternum brings turn-based strategy to life on mobile like never before," August 8, 2018.

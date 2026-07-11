@@ -3,12 +3,13 @@ import './style.css'
 import { BattleScene } from './game/BattleScene'
 import { CampaignScene } from './game/CampaignScene'
 import { audioDirector, type AudioDirector } from './game/audio'
+import { BriefingScene, ResultScene } from './game/StoryScenes'
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: '#0c1513',
-  scene: [CampaignScene, BattleScene],
+  scene: [CampaignScene, BriefingScene, BattleScene, ResultScene],
   scale: {
     mode: Phaser.Scale.RESIZE,
     width: window.innerWidth,
