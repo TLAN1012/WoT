@@ -38,6 +38,17 @@ async function audioCue(page: Page): Promise<string> {
   return page.evaluate(() => window.__WOT_AUDIO__.getLastCue())
 }
 
+async function musicStatus(page: Page): Promise<string> {
+  return page.evaluate(() => window.__WOT_AUDIO__.getMusicStatus())
+}
+
+async function selectedCampaignStage(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const scene = window.__WOT_GAME__.scene.getScene('campaign') as unknown as { selectedStage: number }
+    return scene.selectedStage
+  })
+}
+
 async function battleSnapshot(page: Page): Promise<{ round: number; yao: { q: number; r: number } }> {
   return page.evaluate(() => {
     const scene = window.__WOT_GAME__.scene.getScene('battle') as unknown as {
@@ -84,8 +95,9 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   expect(await activeScene(page)).toBe('campaign')
   await page.screenshot({ path: 'test-results/wot-desktop-campaign.png' })
 
-  await page.locator('canvas').click({ position: { x: 1100, y: 360 } })
+  await page.locator('canvas').click({ position: { x: 1100, y: 670 } })
   await expect.poll(() => activeScene(page)).toBe('briefing')
+  await expect.poll(() => musicStatus(page)).toBe('playing')
   const briefing = await assertPlayableCanvas(page)
   await page.screenshot({ path: 'test-results/wot-desktop-briefing.png' })
   expect(briefing.equals(campaign)).toBe(false)
@@ -100,10 +112,10 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   await expect.poll(() => tooltipText(page)).toContain('森林')
   await page.waitForTimeout(120)
   await page.screenshot({ path: 'test-results/wot-desktop-tooltip.png' })
-  const yao = await hexPoint(page, 0, 2)
+  const yao = await hexPoint(page, 1, 2)
   await page.mouse.move(yao.x, yao.y)
   await expect.poll(() => tooltipText(page)).toContain('友軍 · 姚仁')
-  await expect.poll(() => tooltipText(page)).toContain('防波壁')
+  await expect.poll(() => tooltipText(page)).toContain('藤盾壁')
   await page.screenshot({ path: 'test-results/wot-desktop-unit-tooltip.png' })
   await page.locator('canvas').click({ position: yao })
   await expect.poll(() => selectedUnit(page)).toBe('yao')
@@ -115,7 +127,7 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   await page.locator('canvas').click({ position: destination })
   await expect.poll(() => battleSnapshot(page)).toMatchObject({ yao: { q: 1, r: 1 } })
 
-  const sora = await hexPoint(page, 0, 4)
+  const sora = await hexPoint(page, 0, 2)
   await page.locator('canvas').click({ position: sora })
   await expect.poll(() => selectedUnit(page)).toBe('sora')
   const firingPosition = await hexPoint(page, 2, 3)
@@ -130,7 +142,7 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   await page.evaluate(() => {
     const battleScene = window.__WOT_GAME__.scene.getScene('battle')
     battleScene.scene.start('result', {
-      result: { victory: true, stars: 3, rounds: 6, fallenAllies: 0, stageId: 'cinder-gate' },
+      result: { victory: true, stars: 3, rounds: 6, fallenAllies: 0, stageId: 'fengbitou-landing' },
     })
   })
   await expect.poll(() => activeScene(page)).toBe('result')
@@ -141,7 +153,7 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   await page.evaluate(() => {
     const resultScene = window.__WOT_GAME__.scene.getScene('result')
     resultScene.scene.restart({
-      result: { victory: false, stars: 0, rounds: 9, fallenAllies: 1, stageId: 'cinder-gate' },
+      result: { victory: false, stars: 0, rounds: 9, fallenAllies: 1, stageId: 'fengbitou-landing' },
     })
   })
   await expect.poll(() => activeScene(page)).toBe('result')
@@ -149,6 +161,57 @@ test('desktop campaign opens a rendered tactical battle', async ({ page }) => {
   await page.screenshot({ path: 'test-results/wot-desktop-defeat.png' })
   expect(defeat.equals(victory)).toBe(false)
   expect(errors).toEqual([])
+})
+
+test('completed campaign nodes remain replayable', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('wot-campaign-progress-v1', JSON.stringify({
+      unlockedStage: 4,
+      stars: { 'fengbitou-landing': 3, 'bajia-riverbank': 2 },
+    }))
+  })
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.goto('/')
+  await expect.poll(() => selectedCampaignStage(page)).toBe(4)
+
+  await page.locator('canvas').click({ position: { x: 1036, y: 616 } })
+  await expect.poll(() => selectedCampaignStage(page)).toBe(0)
+
+  await page.locator('canvas').click({ position: { x: 1100, y: 670 } })
+  await expect.poll(() => activeScene(page)).toBe('briefing')
+  await expect(page.locator('canvas')).toBeVisible()
+})
+
+test('fourth stage renders a hill objective with the requested opening formation', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.goto('/')
+  await page.evaluate(() => {
+    const campaign = window.__WOT_GAME__.scene.getScene('campaign')
+    campaign.scene.start('battle', { stageIndex: 3 })
+  })
+  await expect.poll(() => activeScene(page)).toBe('battle')
+  await expect(page.locator('canvas')).toBeVisible()
+  const snapshot = await page.evaluate(() => {
+    const scene = window.__WOT_GAME__.scene.getScene('battle') as unknown as {
+      stage: { objectiveHex: { q: number; r: number } }
+      tileMap: Map<string, { terrain: string }>
+      units: Array<{ id: string; q: number; r: number }>
+    }
+    const objective = scene.stage.objectiveHex
+    return {
+      objectiveTerrain: scene.tileMap.get(`${objective.q},${objective.r}`)?.terrain,
+      allies: Object.fromEntries(scene.units.filter((unit) => ['yao', 'sora', 'mei', 'taka'].includes(unit.id))
+        .map((unit) => [unit.id, { q: unit.q, r: unit.r }])),
+    }
+  })
+  expect(snapshot.objectiveTerrain).toBe('hill')
+  expect(snapshot.allies).toEqual({
+    yao: { q: 1, r: 2 },
+    sora: { q: 0, r: 2 },
+    mei: { q: 1, r: 4 },
+    taka: { q: 0, r: 4 },
+  })
+  await page.screenshot({ path: 'test-results/wot-fourth-stage-high-ground.png' })
 })
 
 test('mobile portrait campaign and battle remain painted', async ({ page }) => {
@@ -160,7 +223,7 @@ test('mobile portrait campaign and battle remain painted', async ({ page }) => {
   expect(await activeScene(page)).toBe('campaign')
   await page.screenshot({ path: 'test-results/wot-mobile-campaign.png' })
 
-  await page.locator('canvas').click({ position: { x: 195, y: 759 } })
+  await page.locator('canvas').click({ position: { x: 195, y: 786 } })
   await expect.poll(() => activeScene(page)).toBe('briefing')
   const briefing = await assertPlayableCanvas(page)
   await page.screenshot({ path: 'test-results/wot-mobile-briefing.png' })
@@ -179,7 +242,7 @@ test('mobile portrait campaign and battle remain painted', async ({ page }) => {
   expect(await tooltipText(page)).toContain('森林')
   await page.screenshot({ path: 'test-results/wot-mobile-tooltip.png' })
   await page.mouse.up()
-  const yao = await hexPoint(page, 0, 2)
+  const yao = await hexPoint(page, 1, 2)
   await page.mouse.move(yao.x, yao.y)
   await page.mouse.down()
   await page.waitForTimeout(520)

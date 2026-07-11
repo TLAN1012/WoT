@@ -1,10 +1,12 @@
-# Warlords of Takao - Vertical Slice Design
+# Warlords of Takao - 南方祖記 Campaign Design
 
 ## Product Direction
 
-Warlords of Takao is a short-session fantasy tactics game built around readable hex geometry, asymmetric regiments, terrain-driven decisions, and campaign objectives that reward more than simple survival.
+Warlords of Takao is a short-session fantasy tactics game built around readable hex geometry, asymmetric professions, terrain-driven decisions, and campaign objectives that reward more than simple survival.
 
-The first release is a vertical slice: three complete battles, a persistent campaign route, a four-character player roster, an enemy faction, procedural sound, and a reusable data format for adding regions and encounters.
+The campaign is a mythic retelling of early Neolithic settlement in the region now called Tainan, Kaohsiung, and Pingtung. It begins with three voyagers landing around seven thousand years ago and grows into a nine-person founding community across ten archaeological map nodes.
+
+The names used on the campaign map are modern archaeological site names, not claimed reconstructions of the inhabitants' own place names; no written record preserves those names.
 
 ## Originality Boundary
 
@@ -19,7 +21,7 @@ The following are treated as general tactics patterns:
 - short battles with optional performance goals
 - a campaign map connecting tactical encounters
 
-WoT's Saltwind continent, Ash Fleet, Saltwind Company, named characters, stage layouts, combat numbers, skill designs, UI, and soundtrack are original to this repository.
+WoT's characters, rival clan, stage layouts, combat numbers, skills, UI, narrative, and soundtrack are original to this repository. Archaeological site names and broad cultural chronology are factual reference points.
 
 ## Research Summary
 
@@ -45,46 +47,46 @@ The WoT implementation rebalances and recombines these general ideas:
 
 Damage begins with attack minus a portion of armor, then applies terrain and guarding modifiers plus a narrow variance band. This keeps displayed stats predictive without making repeated attacks identical.
 
+Opening deployment is profession-driven: archers and casters begin on the rear map edge; shield-halberd and priest units form the second line; builders and deer cavalry deploy farther forward as they join. Hold objectives must visually match their narrative terrain—for example, Chapter IV's high-ground objective is an actual hill cluster.
+
 ## Player Regiments
 
 | Regiment | Role | Signature ability | Tactical identity |
 | --- | --- | --- | --- |
-| Yao Ren, Harbor Warden | Vanguard | Breakwater | Durable anchor; halves incoming damage for two turns |
-| Sora Lin, Sunshot Courier | Ranger | Signal Flare | Long-range area strike for clustered targets |
-| Mei An, Tidebinder | Mystic | Returning Current | Restores nearby allies and sustains a defensive line |
-| Taka Vey, Ridge Strider | Skirmisher | Gale Lunge | High-mobility finisher with a three-hex strike |
+| 姚仁 | 盾戟兵 | 藤盾壁 | 以藤盾與石戟穩住陣線 |
+| 林曦 | 弓箭手 | 烽火箭 | 遠距離區域攻擊 |
+| 安湄 | 潮聲祭司 | 祖泉祝禱 | 回復附近盟友 |
+| 塔卡 | 死靈法師 | 祖魂追擊 | 召喚祖魂遠擊 |
+| 奈雅 | 航海法師 | 順潮風 | 操控潮風並引導航路 |
+| 卡維 | 聚落築造師 | 竹壁工事 | 建立守勢工事 |
+| 露瑪 | 草藥祭司 | 林息祝禱 | 強力群體治療 |
+| 巴努 | 水鹿騎兵 | 鹿角奔襲 | 五格高機動突擊 |
+| 希娜 | 窯火法師 | 陶窯烈焰 | 遠距離火焰區域攻擊 |
 
-## Campaign Slice
+## Ten-Node Campaign
 
-### I. Cinder Gate
-
-- Objective: eliminate every enemy regiment.
-- Teaches: movement, attack range, forest cover, hills, villages.
-- Stars: win; finish by round 7; lose no allies.
-
-### II. Saltwind Crossing
-
-- Objective: hold the bronze beacon for two full rounds.
-- Teaches: positioning under pressure and deciding when not to chase enemies.
-- Stars: win; finish by round 8; lose no allies.
-
-### III. The Broken Lighthouse
-
-- Objective: defeat Marshal Voss before the tenth round.
-- Teaches: breaking a guarded formation and prioritizing the mission target.
-- Stars: win; finish by round 7; lose no allies.
+1. 鳳鼻頭遺址 — 三人登岸。
+2. 歸仁八甲遺址 — 沿河尋找高地。
+3. 南關里東遺址 — 塔卡加入，四人同行。
+4. 南關里遺址 — 試種潮田。
+5. 網寮遺址 — 奈雅加入，五人同行。
+6. 牛稠子遺址 — 卡維加入，六人築長屋。
+7. 大崗山遺址 — 露瑪加入，七人取得石材與草藥。
+8. 桃子園遺址 — 巴努與水鹿加入，八人盟誓。
+9. 覆頂金遺址 — 希娜加入，九人共同體成形。
+10. 鵝鑾鼻第二史前遺址 — 九人在南方盡頭點亮星火。
 
 ## Audio Direction
 
-Music is generated at runtime with Web Audio and scheduled ahead for stable rhythm. Campaign mode layers a slow modal melody, low drone, plucked tones, and restrained frame drums. Battle mode uses a faster 16-step score with taiko-style percussion, bass movement, horn swells, and shifting melodic phrases.
+The primary score uses four original MP3 tracks: `Banner_of_Takao` for campaign and briefings, `Frontline_Calculations` for battle, `Victory_Over_Takao` for victory, and `Failed_war` for retreat. Music begins preloading when a scene opens, shows a loading/interaction hint, and starts after the browser receives a user gesture. The earlier procedural Web Audio score remains as a fallback.
 
-Friendly characters have individual two-note selection cues and distinct vocal pitch profiles. Every attack begins with a short synthesized battle cry, followed by a role-specific melee, bow, tide-magic, or cannon sound. Enemy raiders, guards, artillery, and the commander use the same system with lower, more hostile voice profiles. Movement, abilities, victory, and defeat retain separate cues. All sound is original procedural synthesis; no third-party recording is distributed.
+Friendly characters have individual two-note selection cues and distinct vocal pitch profiles. Every attack begins with a short synthesized battle cry, followed by role-specific melee, bow, sling, or ritual-magic sound. Movement and abilities retain separate procedural cues.
 
 ## Campaign Presentation and Difficulty
 
 Every stage opens with a full-screen illustrated briefing containing the battle context, objective, and round limit. Battles end in a dedicated illustrated result scene; victory and retreat use different art, narrative copy, color accents, ratings, and audio cues.
 
-The first playable campaign is tuned for approachability: enemy attack, health, and armor sit below the initial prototype values, while stage round limits are 14, 14, and 12. Fast-clear thresholds are 9, 10, and 9. This keeps terrain and ability decisions relevant without requiring near-perfect play on a first attempt.
+The campaign remains tuned for approachability. Battles use 12–14 round limits, the party grows from three to nine, and stars reward victory, speed, and keeping every settler alive.
 
 ## Source Notes
 
@@ -92,3 +94,4 @@ The first playable campaign is tuned for approachability: enemy attack, health, 
 - InnoGames customer support, "Why are there different types of Terrain?"
 - InnoGames customer support, "How can I use a regiment's Ability?"
 - YouTube video `7sMzdMhJCEw`, supplied by the project owner as a pacing and battle-flow reference.
+- National Museum of Prehistory, Taiwan Prehistoric Culture Cloud: Dapenkeng culture, Bajia, Fengbitou, and Niuchoutzu culture entries.

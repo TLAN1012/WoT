@@ -15,22 +15,20 @@ The following assets were created with the built-in ChatGPT/Codex image generati
 
 | File | Grid | Frame order |
 | --- | --- | --- |
-| `public/assets/generated/allies-sheet.png` | 2x2 | Yao, Sora, Mei, Taka |
-| `public/assets/generated/enemies-sheet.png` | 3x2 | Ember Raider, Salt Archer, Mire Guard, Ash Cannoner, Marshal Voss, empty |
+| `public/assets/generated/allies-neolithic-sheet.png` | 3x3 | Yao, Sora, Mei, Taka, Nai, Kavi, Luma, Panu on sambar deer, Sina |
+| `public/assets/generated/enemies-neolithic-sheet.png` | 3x2 | Rival hunter, javelin thrower, rattan guard, sling thrower, clan chief, empty |
 | `public/assets/generated/terrain-sheet.png` | 3x2 | Plain, Forest, Hill, Marsh, Village, Water |
-| `public/assets/generated/saltwind-continent-map.png` | full image | complete Saltwind Continent |
-| `public/assets/story/cinder-gate.jpg` | 16:9 | Chapter I battle briefing |
-| `public/assets/story/saltwind-crossing.jpg` | 16:9 | Chapter II battle briefing |
-| `public/assets/story/broken-lighthouse.jpg` | 16:9 | Chapter III battle briefing |
-| `public/assets/story/victory.jpg` | 16:9 | campaign victory result |
-| `public/assets/story/defeat.jpg` | 16:9 | tactical retreat result |
+| `public/assets/generated/southwest-taiwan-neolithic-map.png` | full image | early-Neolithic Tainan–Kaohsiung–Pingtung campaign region |
+| `public/assets/story/neolithic/<stage-id>.png` | 16:9 | ten chapter-specific background-only illustrations |
+| `public/assets/story/neolithic/victory.png` | 16:9 | nine-hero campaign victory background |
+| `public/assets/story/neolithic/defeat.png` | 16:9 | nine-hero tactical retreat background |
 
 The sprite sheets were generated on a flat `#ff00ff` chroma-key background. The project-local final PNGs use an alpha matte created with Codex's image-generation chroma removal helper. Original generated outputs remain in Codex's generated image store.
 
 ## Prompt Constraints
 
-Character sheets require identical 45-degree cameras, equal grid cells, consistent feet baselines, full silhouettes, strong class palettes, and no labels or scenery. Terrain sheets require identical hex footprints, visible plate thickness, readable terrain silhouettes, equal grid cells, and no labels. The continent map requires the entire coastline to remain visible, hand-inked relief, parchment materials, no labels, and no modern objects.
+Character sheets require identical 45-degree cameras, equal grid cells, consistent feet baselines, full silhouettes, strong class palettes, and no labels or scenery. Materials are plant fiber, bark cloth, hide, shell, bone, bamboo, wood, and polished stone; deer cavalry uses a Formosan sambar deer. Terrain sheets require identical hex footprints, visible plate thickness, readable terrain silhouettes, equal grid cells, and no labels. The campaign map uses hand-inked relief, early-Holocene wetlands and estuaries, no embedded labels, and no modern or medieval objects.
 
 New art should preserve these constraints so frames can be registered without manual per-character positioning.
 
-Story illustrations use the existing ally sheet, enemy sheet, and continent map as visual references. They preserve character costumes, weapons, hair, faction palettes, coastal architecture, and the chibi-proportioned 3D-rendered style. All five images were generated without embedded text; Phaser overlays Traditional Chinese copy in full-width lower bands so localization remains editable and reliable. Essential figures stay near the horizontal center to tolerate portrait cropping. Final project files are JPEG quality 88 at 1672x941; the original generated PNGs remain in the Codex generated image store.
+The twelve active story backgrounds were generated through headless Grok Imagine using the ally sheet, enemy sheet, and continent map as locked references. Later scenes chain from accepted earlier scenes and add only newly introduced heroes. They contain no embedded text; Phaser renders all Traditional Chinese titles, narrative, objectives, ratings, and controls at runtime with device-pixel-ratio-aware text textures. Essential figures remain near the horizontal center for portrait cover crops. The reproducible Grok work orders are `docs/GROK_STORY_BACKGROUNDS.md` and `docs/GROK_STORY_BACKGROUNDS_FIX.md`.

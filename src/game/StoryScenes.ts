@@ -16,7 +16,7 @@ const FONT_SANS = '"PingFang TC", "Noto Sans TC", sans-serif'
 const FONT_DISPLAY = '"PingFang TC", "Noto Sans TC", serif'
 
 function storyAsset(stage: StageDefinition): string {
-  return `${import.meta.env.BASE_URL}assets/story/${stage.id}.jpg`
+  return `${import.meta.env.BASE_URL}${stage.storyImage}`
 }
 
 function addCoverImage(scene: Phaser.Scene, key: string, width: number, height: number): Phaser.GameObjects.Image {
@@ -104,7 +104,10 @@ export class BriefingScene extends Phaser.Scene {
     this.add.text(padding, titleY + (portrait ? 39 : 51), this.stage.subtitle, {
       fontFamily: FONT_SANS, fontSize: portrait ? '14px' : '16px', color: '#efc15a',
     })
-    this.add.text(padding, titleY + (portrait ? 66 : 82), this.stage.briefing, {
+    this.add.text(padding, titleY + (portrait ? 60 : 75), `${this.stage.archaeologyLabel} · 考古定位名 · 同行 ${this.stage.partySize} 人`, {
+      fontFamily: FONT_SANS, fontSize: portrait ? '11px' : '12px', color: '#9fb2a7',
+    })
+    this.add.text(padding, titleY + (portrait ? 80 : 98), this.stage.briefing, {
       fontFamily: FONT_SANS,
       fontSize: portrait ? '14px' : '15px',
       color: '#d5dfd8',
@@ -147,8 +150,8 @@ export class ResultScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image('result-victory', `${import.meta.env.BASE_URL}assets/story/victory.jpg`)
-    this.load.image('result-defeat', `${import.meta.env.BASE_URL}assets/story/defeat.jpg`)
+    this.load.image('result-victory', `${import.meta.env.BASE_URL}assets/story/neolithic/victory.png`)
+    this.load.image('result-defeat', `${import.meta.env.BASE_URL}assets/story/neolithic/defeat.png`)
   }
 
   create(): void {

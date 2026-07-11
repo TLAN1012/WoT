@@ -29,13 +29,14 @@ export class CampaignScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image('allies-sheet', `${import.meta.env.BASE_URL}assets/generated/allies-sheet.png`)
-    this.load.image('continent-map', `${import.meta.env.BASE_URL}assets/generated/saltwind-continent-map.png`)
+    this.load.image('allies-sheet', `${import.meta.env.BASE_URL}assets/generated/allies-neolithic-sheet.png`)
+    this.load.image('continent-map', `${import.meta.env.BASE_URL}assets/generated/southwest-taiwan-neolithic-map.png`)
   }
 
-  init(): void {
+  init(data?: { selectedStage?: number }): void {
     this.progress = loadProgress()
-    this.selectedStage = Math.min(this.progress.unlockedStage, STAGES.length - 1)
+    const latestStage = Math.min(this.progress.unlockedStage, STAGES.length - 1)
+    this.selectedStage = Phaser.Math.Clamp(data?.selectedStage ?? latestStage, 0, latestStage)
   }
 
   create(): void {
@@ -45,6 +46,7 @@ export class CampaignScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(COLORS.ink)
     this.drawWorld(width, height)
     this.drawHeader(width)
+    this.drawAudioStatus(width)
     this.drawCampaignRoute(width, height)
     this.drawStagePanel(STAGES[this.selectedStage], width, height)
     this.drawRoster(width, height)
@@ -60,12 +62,14 @@ export class CampaignScene extends Phaser.Scene {
     graphics.fillStyle(0x665538, 1)
     graphics.fillRect(0, 0, width, height)
     const landscape = width >= 700
-    const mapWidth = landscape ? width * 0.72 : width
+    const mapWidth = landscape ? width * 0.76 : width
     const mapTop = 84
     const mapBottom = landscape ? height : height * 0.62
     const mapHeight = mapBottom - mapTop
     const source = this.textures.get('continent-map').getSourceImage() as HTMLImageElement
-    const scale = Math.min(mapWidth / source.width, mapHeight / source.height)
+    const scale = landscape
+      ? Math.min(mapWidth / source.width, mapHeight / source.height)
+      : Math.max(mapWidth / source.width, mapHeight / source.height)
     const displayWidth = source.width * scale
     const displayHeight = source.height * scale
     this.add.image(mapWidth / 2, mapTop + mapHeight / 2, 'continent-map')
@@ -77,13 +81,13 @@ export class CampaignScene extends Phaser.Scene {
 
   private drawHeader(width: number): void {
     this.add.rectangle(0, 0, width, 84, COLORS.ink, 0.88).setOrigin(0)
-    this.add.text(28, 18, width < 600 ? 'WOT · 打狗戰記' : 'WARLORDS OF TAKAO', {
+    this.add.text(28, 18, width < 600 ? 'WOT · 南方祖記' : 'WARLORDS OF TAKAO · 南方祖記', {
       fontFamily: FONT_DISPLAY,
       fontSize: width < 600 ? '26px' : '34px',
       fontStyle: 'bold',
       color: COLORS.cream,
     })
-    this.add.text(30, width < 600 ? 53 : 59, '打狗軍閥 · 鹽風戰紀', {
+    this.add.text(30, width < 600 ? 53 : 59, '七千年前 · 台南—高雄—屏東', {
       fontFamily: FONT_SANS,
       fontSize: '12px',
       color: '#efc15a',
@@ -96,9 +100,30 @@ export class CampaignScene extends Phaser.Scene {
     })
   }
 
+  private drawAudioStatus(width: number): void {
+    const hint = this.add.text(width - 92, 69, '', {
+      fontFamily: FONT_SANS,
+      fontSize: '10px',
+      color: '#d8c98f',
+      backgroundColor: '#0d1715cc',
+      padding: { x: 5, y: 2 },
+    }).setOrigin(1, 0).setDepth(20)
+    const labels = {
+      idle: '點一下播放音樂',
+      loading: '音樂載入中…',
+      ready: '點一下播放音樂',
+      playing: '',
+      error: '合成配樂模式',
+    }
+    const unsubscribe = audioDirector.onMusicStatusChange((status) => {
+      hint.setText(labels[status]).setVisible(labels[status].length > 0)
+    })
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, unsubscribe)
+  }
+
   private drawCampaignRoute(width: number, height: number): void {
     const landscape = width >= 700
-    const mapWidth = landscape ? width * 0.72 : width
+    const mapWidth = landscape ? width * 0.76 : width
     const mapTop = 84
     const mapBottom = landscape ? height : height * 0.62
     const mapHeight = mapBottom - mapTop
@@ -120,37 +145,36 @@ export class CampaignScene extends Phaser.Scene {
       const unlocked = index <= this.progress.unlockedStage
       const selected = index === this.selectedStage
       const node = this.add.container(point.x, point.y)
-      const halo = this.add.circle(0, 0, selected ? 31 : 25, selected ? COLORS.gold : COLORS.ink, selected ? 0.34 : 0.5)
-      const disc = this.add.circle(0, 0, selected ? 22 : 18, unlocked ? COLORS.panelLight : 0x26302d, 1)
+      const halo = this.add.circle(0, 0, selected ? 24 : 19, selected ? COLORS.gold : COLORS.ink, selected ? 0.34 : 0.5)
+      const disc = this.add.circle(0, 0, selected ? 17 : 14, unlocked ? COLORS.panelLight : 0x26302d, 1)
         .setStrokeStyle(2, unlocked ? COLORS.gold : 0x59615e, 1)
       const label = this.add.text(0, -1, unlocked ? stage.chapter : '×', {
         fontFamily: FONT_DISPLAY,
-        fontSize: selected ? '21px' : '17px',
+        fontSize: selected ? '15px' : '12px',
         fontStyle: 'bold',
         color: unlocked ? COLORS.cream : '#717b76',
       }).setOrigin(0.5)
-      const name = this.add.text(0, 32, stage.name, {
+      const name = this.add.text(0, 24, stage.archaeologyLabel.replace('遺址', ''), {
         fontFamily: FONT_SANS,
-        fontSize: width < 600 ? '12px' : '14px',
+        fontSize: width < 600 ? '10px' : '11px',
         fontStyle: 'bold',
         color: unlocked ? COLORS.cream : '#718079',
         backgroundColor: '#10201bbd',
         padding: { x: 6, y: 3 },
       }).setOrigin(0.5)
       node.add([halo, disc, label, name])
-      node.setSize(80, 72).setInteractive({ useHandCursor: unlocked })
+      node.setSize(72, 56).setInteractive({ useHandCursor: unlocked })
       if (unlocked) {
         node.on('pointerdown', () => {
           audioDirector.play('select')
-          this.selectedStage = index
-          this.scene.restart()
+          this.scene.restart({ selectedStage: index })
         })
       }
 
       const stars = this.progress.stars[stage.id] ?? 0
       if (stars > 0) {
-        this.add.text(point.x, point.y + 53, `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`, {
-          fontFamily: FONT_SANS, fontSize: '14px',
+        this.add.text(point.x, point.y + 42, `${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}`, {
+          fontFamily: FONT_SANS, fontSize: '11px',
           color: '#efc15a',
         }).setOrigin(0.5)
       }
@@ -159,9 +183,9 @@ export class CampaignScene extends Phaser.Scene {
 
   private drawStagePanel(stage: StageDefinition, width: number, height: number): void {
     const landscape = width >= 700
-    const panelX = landscape ? width * 0.72 : 12
+    const panelX = landscape ? width * 0.76 : 12
     const panelY = landscape ? 96 : height * 0.63
-    const panelWidth = landscape ? width * 0.28 - 14 : width - 24
+    const panelWidth = landscape ? width * 0.24 - 14 : width - 24
     const panelHeight = landscape ? height - 110 : height * 0.36 - 12
     this.add.rectangle(panelX, panelY, panelWidth, panelHeight, COLORS.panel, 0.96)
       .setOrigin(0)
@@ -186,7 +210,12 @@ export class CampaignScene extends Phaser.Scene {
       fontFamily: FONT_SANS, fontSize: '13px', color: '#a8b6aa', wordWrap: { width: panelWidth - padding * 2, useAdvancedWrap: true },
     })
     y += landscape ? 38 : 26
-    if (landscape || height > 720) {
+    this.add.text(contentX, y, `${stage.archaeologyLabel} · 同行 ${stage.partySize} 人`, {
+      fontFamily: FONT_SANS, fontSize: '11px', color: '#efc15a',
+      wordWrap: { width: panelWidth - padding * 2, useAdvancedWrap: true },
+    })
+    y += 22
+    if (landscape) {
       const briefing = this.add.text(contentX, y, stage.briefing, {
         fontFamily: FONT_SANS, fontSize: '14px', color: '#d7dfd5', lineSpacing: 7,
         wordWrap: { width: panelWidth - padding * 2, useAdvancedWrap: true },
@@ -202,13 +231,26 @@ export class CampaignScene extends Phaser.Scene {
     })
     y += landscape ? 45 : 36
 
-    const unlocked = STAGES.indexOf(stage) <= this.progress.unlockedStage
-    const buttonY = Math.min(panelY + panelHeight - 58, y)
+    const stageIndex = STAGES.indexOf(stage)
+    const unlocked = stageIndex <= this.progress.unlockedStage
+    const maxUnlocked = Math.min(this.progress.unlockedStage, STAGES.length - 1)
+    const navGap = 6
+    const navWidth = (panelWidth - padding * 2 - navGap * 2) / 3
+    const navY = panelY + panelHeight - 108
+    const selectStage = (index: number): void => {
+      audioDirector.play('select')
+      this.scene.restart({ selectedStage: Phaser.Math.Clamp(index, 0, maxUnlocked) })
+    }
+    this.createTextButton(contentX, navY, navWidth, 36, '第一關', () => selectStage(0), stageIndex === 0)
+    this.createTextButton(contentX + navWidth + navGap, navY, navWidth, 36, '上一關', () => selectStage(stageIndex - 1), stageIndex === 0)
+    this.createTextButton(contentX + (navWidth + navGap) * 2, navY, navWidth, 36, '下一關', () => selectStage(stageIndex + 1), stageIndex >= maxUnlocked)
+
+    const buttonY = panelY + panelHeight - 58
     this.createTextButton(contentX, buttonY, panelWidth - padding * 2, 44, unlocked ? '出陣' : '尚未解鎖', () => {
       if (!unlocked) return
       audioDirector.play('select')
       audioDirector.stopMusic()
-      this.scene.start('briefing', { stageIndex: STAGES.indexOf(stage) })
+      this.scene.start('briefing', { stageIndex })
     }, !unlocked)
   }
 
@@ -216,13 +258,14 @@ export class CampaignScene extends Phaser.Scene {
     if (width < 700) return
     const x = 24
     const y = height - 94
-    this.add.text(x, y - 24, '鹽風戰團', { fontFamily: FONT_SANS, fontSize: '12px', color: '#efc15a', letterSpacing: 2 })
-    HERO_IDS.forEach((id, index) => {
+    const latestPartySize = STAGES[Math.min(this.progress.unlockedStage, STAGES.length - 1)].partySize
+    this.add.text(x, y - 24, `祖火同行者 · ${latestPartySize}/9`, { fontFamily: FONT_SANS, fontSize: '12px', color: '#efc15a', letterSpacing: 1 })
+    HERO_IDS.slice(0, latestPartySize).forEach((id, index) => {
       const hero = unitDefinition(id)
-      const cx = x + index * 82
-      this.add.circle(cx + 24, y + 24, 25, COLORS.ink, 0.72).setStrokeStyle(2, hero.accent, 0.85)
-      this.add.image(cx + 24, y + 22, 'allies-sheet', unitFrame(id)).setDisplaySize(58, 58)
-      this.add.text(cx + 24, y + 55, hero.name, { fontFamily: FONT_SANS, fontSize: '11px', color: '#d7dfd5' }).setOrigin(0.5)
+      const cx = x + index * 62
+      this.add.circle(cx + 21, y + 22, 22, COLORS.ink, 0.72).setStrokeStyle(2, hero.accent, 0.85)
+      this.add.image(cx + 21, y + 20, 'allies-sheet', unitFrame(id)).setDisplaySize(50, 50)
+      this.add.text(cx + 21, y + 49, hero.name, { fontFamily: FONT_SANS, fontSize: '10px', color: '#d7dfd5' }).setOrigin(0.5)
     })
   }
 

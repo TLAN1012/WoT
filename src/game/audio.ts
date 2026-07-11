@@ -2,12 +2,31 @@ import type { Role } from './types'
 
 export type AudioEffect = 'select' | 'move' | 'hit' | 'ability' | 'victory' | 'defeat'
 export type MusicMode = 'campaign' | 'battle'
+export type MusicStatus = 'idle' | 'loading' | 'ready' | 'playing' | 'error'
+
+const MUSIC_SOURCES: Record<MusicMode, string> = {
+  campaign: `${import.meta.env.BASE_URL}assets/audio/Banner_of_Takao.mp3`,
+  battle: `${import.meta.env.BASE_URL}assets/audio/Frontline_Calculations.mp3`,
+}
+
+const RESULT_SOURCES: Record<'victory' | 'defeat', string> = {
+  victory: `${import.meta.env.BASE_URL}assets/audio/Victory_Over_Takao.mp3`,
+  defeat: `${import.meta.env.BASE_URL}assets/audio/Failed_war.mp3`,
+}
+
+const REAL_MUSIC_VOLUME = 0.42
+const REAL_CUE_VOLUME = 0.62
 
 const VOICE_PITCH: Record<string, number> = {
   yao: 112,
   sora: 196,
   mei: 174,
   taka: 148,
+  nai: 184,
+  kavi: 118,
+  luma: 158,
+  panu: 136,
+  sina: 204,
   ember_raider: 126,
   salt_archer: 166,
   mire_guard: 92,
@@ -20,6 +39,11 @@ const SELECT_NOTES: Record<string, [number, number]> = {
   sora: [329.6, 440],
   mei: [261.6, 392],
   taka: [293.7, 493.9],
+  nai: [220, 329.6],
+  kavi: [174.6, 261.6],
+  luma: [246.9, 370],
+  panu: [196, 392],
+  sina: [329.6, 523.3],
 }
 
 export class AudioDirector {
@@ -35,6 +59,11 @@ export class AudioDirector {
   private muted = false
   private noiseBuffer?: AudioBuffer
   private lastCue = ''
+  private realMusic?: HTMLAudioElement
+  private realMusicMode?: MusicMode
+  private realMusicAvailable = typeof Audio !== 'undefined'
+  private musicStatus: MusicStatus = 'idle'
+  private musicStatusListeners = new Set<(status: MusicStatus) => void>()
 
   async unlock(): Promise<void> {
     if (!this.context) {
@@ -57,6 +86,7 @@ export class AudioDirector {
       compressor.connect(this.master)
       this.master.connect(this.context.destination)
       this.noiseBuffer = this.createNoiseBuffer()
+      this.realMusicAvailable = typeof Audio !== 'undefined'
     }
     if (this.context.state === 'suspended') await this.context.resume()
     if (this.pendingMusic) this.beginMusic(this.pendingMusic)
@@ -67,6 +97,7 @@ export class AudioDirector {
     if (this.master && this.context) {
       this.master.gain.setTargetAtTime(muted ? 0 : 0.62, this.context.currentTime, 0.05)
     }
+    if (this.realMusic) this.realMusic.volume = muted ? 0 : REAL_MUSIC_VOLUME
   }
 
   isMuted(): boolean {
@@ -77,8 +108,19 @@ export class AudioDirector {
     return this.lastCue
   }
 
+  getMusicStatus(): MusicStatus {
+    return this.musicStatus
+  }
+
+  onMusicStatusChange(listener: (status: MusicStatus) => void): () => void {
+    this.musicStatusListeners.add(listener)
+    listener(this.musicStatus)
+    return () => this.musicStatusListeners.delete(listener)
+  }
+
   startMusic(mode: MusicMode): void {
     this.pendingMusic = mode
+    this.prepareRealMusic(mode)
     if (!this.context || !this.musicBus) return
     this.beginMusic(mode)
   }
@@ -88,6 +130,7 @@ export class AudioDirector {
     this.musicTimer = undefined
     this.musicMode = undefined
     this.pendingMusic = undefined
+    this.stopRealMusic()
   }
 
   playSelect(unitId?: string): void {
@@ -106,9 +149,8 @@ export class AudioDirector {
     this.battleCry(VOICE_PITCH[unitId] ?? 125, now, unitId === 'commander' ? 0.34 : 0.24)
     const impactTime = now + (role === 'artillery' ? 0.22 : 0.15)
 
-    if (role === 'ranger') this.bowShot(impactTime)
-    else if (role === 'artillery') this.cannonShot(impactTime)
-    else if (role === 'mystic') this.magicStrike(impactTime)
+    if (role === 'ranger' || role === 'artillery') this.bowShot(impactTime)
+    else if (role === 'priest' || role === 'necromancer' || role === 'navigator' || role === 'herbalist' || role === 'fire_mage') this.magicStrike(impactTime)
     else this.meleeStrike(impactTime, role === 'vanguard' || role === 'commander')
 
     if (ability) {
@@ -131,11 +173,15 @@ export class AudioDirector {
       this.magicStrike(now)
       this.tone(330, 0.26, 'triangle', 0.08, now, this.effectsBus, 494)
     } else if (effect === 'victory') {
-      ;[392, 523.3, 659.3, 784].forEach((note, index) => this.horn(note, now + index * 0.12, index === 3 ? 0.5 : 0.23, 0.1))
-      this.taiko(now, 0.16)
+      if (!this.playRealCue('victory')) {
+        ;[392, 523.3, 659.3, 784].forEach((note, index) => this.horn(note, now + index * 0.12, index === 3 ? 0.5 : 0.23, 0.1))
+        this.taiko(now, 0.16)
+      }
     } else {
-      ;[196, 174.6, 146.8, 110].forEach((note, index) => this.horn(note, now + index * 0.15, 0.3, 0.075))
-      this.noise(0.7, 0.035, now + 0.2, 260)
+      if (!this.playRealCue('defeat')) {
+        ;[196, 174.6, 146.8, 110].forEach((note, index) => this.horn(note, now + index * 0.15, 0.3, 0.075))
+        this.noise(0.7, 0.035, now + 0.2, 260)
+      }
     }
   }
 
@@ -144,10 +190,84 @@ export class AudioDirector {
     if (this.musicTimer !== undefined) window.clearInterval(this.musicTimer)
     this.musicMode = mode
     this.pendingMusic = mode
+    this.prepareRealMusic(mode)
+    if (this.playPreparedMusic(mode)) return
     this.step = 0
     this.nextStepTime = this.context.currentTime + 0.04
     this.scheduleMusic()
     this.musicTimer = window.setInterval(() => this.scheduleMusic(), 50)
+  }
+
+  private prepareRealMusic(mode: MusicMode): void {
+    if (!this.realMusicAvailable) return
+    if (this.realMusic && this.realMusicMode === mode) return
+    this.stopRealMusic()
+    const music = new Audio(MUSIC_SOURCES[mode])
+    music.loop = true
+    music.preload = 'auto'
+    music.volume = this.muted ? 0 : REAL_MUSIC_VOLUME
+    this.realMusic = music
+    this.realMusicMode = mode
+    this.setMusicStatus('loading')
+    music.addEventListener('loadeddata', () => {
+      if (this.realMusic === music && music.paused) this.setMusicStatus('ready')
+    })
+    music.addEventListener('playing', () => {
+      if (this.realMusic === music) this.setMusicStatus('playing')
+    })
+    music.addEventListener('waiting', () => {
+      if (this.realMusic === music) this.setMusicStatus('loading')
+    })
+    music.addEventListener('error', () => {
+      if (this.realMusic === music) {
+        this.realMusicAvailable = false
+        this.realMusic = undefined
+        this.realMusicMode = undefined
+        this.setMusicStatus('error')
+        this.step = 0
+        this.nextStepTime = this.context?.currentTime ?? 0
+        if (this.context) {
+          this.scheduleMusic()
+          this.musicTimer = window.setInterval(() => this.scheduleMusic(), 50)
+        }
+      }
+    }, { once: true })
+    music.load()
+  }
+
+  private playPreparedMusic(mode: MusicMode): boolean {
+    if (!this.realMusicAvailable || !this.realMusic || this.realMusicMode !== mode) return false
+    const music = this.realMusic
+    void music.play().catch(() => {
+      if (this.realMusic === music) this.setMusicStatus('ready')
+    })
+    return true
+  }
+
+  private stopRealMusic(): void {
+    if (!this.realMusic) return
+    this.realMusic.pause()
+    this.realMusic.currentTime = 0
+    this.realMusic = undefined
+    this.realMusicMode = undefined
+    this.setMusicStatus('idle')
+  }
+
+  private setMusicStatus(status: MusicStatus): void {
+    if (this.musicStatus === status) return
+    this.musicStatus = status
+    this.musicStatusListeners.forEach((listener) => listener(status))
+  }
+
+  private playRealCue(effect: 'victory' | 'defeat'): boolean {
+    if (!this.realMusicAvailable) return false
+    this.stopRealMusic()
+    const cue = new Audio(RESULT_SOURCES[effect])
+    cue.preload = 'auto'
+    cue.volume = this.muted ? 0 : REAL_CUE_VOLUME
+    cue.addEventListener('ended', () => cue.remove(), { once: true })
+    void cue.play().catch(() => cue.remove())
+    return true
   }
 
   private scheduleMusic(): void {
@@ -260,13 +380,6 @@ export class AudioDirector {
     this.tone(240, 0.08, 'triangle', 0.085, when, this.effectsBus, 92)
     this.noise(0.18, 0.06, when + 0.015, 1800)
     this.tone(1320, 0.12, 'sine', 0.03, when + 0.02, this.effectsBus, 620)
-  }
-
-  private cannonShot(when: number): void {
-    if (!this.effectsBus) return
-    this.tone(82, 0.48, 'sine', 0.18, when, this.effectsBus, 38)
-    this.noise(0.55, 0.15, when, 180)
-    this.noise(0.24, 0.07, when + 0.05, 920)
   }
 
   private magicStrike(when: number): void {

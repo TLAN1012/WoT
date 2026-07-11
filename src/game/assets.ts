@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import type { Terrain } from './types'
 
-const ALLY_FRAMES = ['yao', 'sora', 'mei', 'taka'] as const
+const ALLY_FRAMES = ['yao', 'sora', 'mei', 'taka', 'nai', 'kavi', 'luma', 'panu', 'sina'] as const
 const ENEMY_FRAMES = ['ember_raider', 'salt_archer', 'mire_guard', 'cannoner', 'commander'] as const
 const TERRAIN_FRAMES: Terrain[] = ['plain', 'forest', 'hill', 'marsh', 'village', 'water']
 
@@ -28,7 +28,7 @@ function addGridFrames(
 }
 
 export function registerAllyFrames(textures: Phaser.Textures.TextureManager): void {
-  addGridFrames(textures, 'allies-sheet', 2, 2, ALLY_FRAMES, 'unit')
+  addGridFrames(textures, 'allies-sheet', 3, 3, ALLY_FRAMES, 'unit')
 }
 
 export function registerGeneratedFrames(textures: Phaser.Textures.TextureManager): void {

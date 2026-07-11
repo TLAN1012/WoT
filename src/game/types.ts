@@ -1,6 +1,19 @@
 export type Side = 'allies' | 'enemies'
 export type Terrain = 'plain' | 'forest' | 'hill' | 'marsh' | 'village' | 'water'
-export type Role = 'vanguard' | 'ranger' | 'mystic' | 'skirmisher' | 'raider' | 'artillery' | 'commander'
+export type Role =
+  | 'halberd'
+  | 'ranger'
+  | 'priest'
+  | 'necromancer'
+  | 'navigator'
+  | 'builder'
+  | 'herbalist'
+  | 'cavalry'
+  | 'fire_mage'
+  | 'vanguard'
+  | 'raider'
+  | 'artillery'
+  | 'commander'
 export type ObjectiveType = 'eliminate' | 'hold' | 'commander'
 export type AbilityKind = 'guard' | 'volley' | 'heal' | 'lunge'
 
@@ -70,6 +83,9 @@ export interface StageDefinition {
   enemies: EnemyPlacement[]
   terrain: TileDefinition[]
   mapPosition: { x: number; y: number }
+  partySize: number
+  archaeologyLabel: string
+  storyImage: string
 }
 
 export interface BattleResult {

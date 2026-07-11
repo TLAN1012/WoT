@@ -31,12 +31,18 @@ const TERRAIN_INFO: Record<Terrain, { name: string; description: string }> = {
 }
 
 const ROLE_LABELS: Record<UnitState['role'], string> = {
-  vanguard: '前衛',
+  halberd: '盾戟兵',
   ranger: '射手',
-  mystic: '術士',
-  skirmisher: '游擊兵',
+  priest: '祭司',
+  necromancer: '死靈法師',
+  navigator: '航海法師',
+  builder: '工匠',
+  herbalist: '草藥祭司',
+  cavalry: '鹿騎兵',
+  fire_mage: '火焰法師',
+  vanguard: '前衛',
   raider: '掠兵',
-  artillery: '遠程兵',
+  artillery: '投石兵',
   commander: '指揮官',
 }
 
@@ -83,8 +89,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   preload(): void {
-    this.load.image('allies-sheet', `${import.meta.env.BASE_URL}assets/generated/allies-sheet.png`)
-    this.load.image('enemies-sheet', `${import.meta.env.BASE_URL}assets/generated/enemies-sheet.png`)
+    this.load.image('allies-sheet', `${import.meta.env.BASE_URL}assets/generated/allies-neolithic-sheet.png`)
+    this.load.image('enemies-sheet', `${import.meta.env.BASE_URL}assets/generated/enemies-neolithic-sheet.png`)
     this.load.image('terrain-sheet', `${import.meta.env.BASE_URL}assets/generated/terrain-sheet.png`)
   }
 
