@@ -1,97 +1,79 @@
-# Warlords of Takao - 南方祖記 Campaign Design
+# 南方祖記 — 英雄戰棋設計
 
-## Product Direction
+## 方向
 
-Warlords of Takao is a short-session fantasy tactics game built around readable hex geometry, asymmetric professions, terrain-driven decisions, and campaign objectives that reward more than simple survival.
+RPG 型態的六角格英雄戰棋。一格一位英雄,每位英雄有職業、五項屬性、等級、點數與技能;從(假想的)冰河時期開始,一群人跨海東來,最後成為馬卡道人——高雄人的始祖。
 
-The campaign is a mythic retelling of early Neolithic settlement in the region now called Tainan, Kaohsiung, and Pingtung. It begins with three voyagers landing around seven thousand years ago and grows into a nine-person founding community across ten archaeological map nodes.
+- 畫風致敬《魔法公主》:手繪賽璐璐、水彩背景,和紙色介面。美術全部由自架畫室(Qwen-Image)生成,腳本 `scripts/art/gen-art.py`。
+- 手機優先:全螢幕地圖、拖曳縮放、底部英雄列與技能列。
+- 舊版十關(七千年前、Phaser)保留在 `legacy/`,部署在 `/WoT/legacy/`,之後會重做成較後面的章節。
 
-The names used on the campaign map are modern archaeological site names, not claimed reconstructions of the inhabitants' own place names; no written record preserves those names.
+## 章節
 
-## Originality Boundary
+| 章 | 時代 | 內容 |
+|---|---|---|
+| 第一景・跨海東來 | 約兩萬年前 | 巴度、達努、比杜走過台灣海峽陸橋:離岸 → 玄武岩之夜 → 寒祟古象 |
+| (後續) | | 在台灣落腳、遇見其他職業系的同伴…… |
+| (很後面) | 約七千年前 | 舊版《南方祖記》十個考古遺址節點 |
 
-The project borrows genre conventions, not protected expression. It does not reuse names, characters, art, audio, map layouts, dialogue, code, or data from Warlords of Aternum.
+## 規則
 
-The following are treated as general tactics patterns:
+### 回合
 
-- hex-grid movement and range
-- small-squad deployment
-- terrain-based cover, elevation, movement, and healing
-- active and passive unit abilities
-- short battles with optional performance goals
-- a campaign map connecting tactical encounters
+我方階段 → 敵方階段。每位英雄每回合可「移動一次 + 行動一次」;行動(技能、普攻、待命)後不能再移動。走進敵人相鄰的格子(控制區)就得停下。友軍可以穿過、不能同格。
 
-WoT's characters, rival clan, stage layouts, combat numbers, skills, UI, narrative, and soundtrack are original to this repository. Archaeological site names and broad cultural chronology are factual reference points.
+### 屬性 → 數值
 
-## Research Summary
+| 屬性 | 影響 |
+|---|---|
+| 力 str | 物攻 = 力 × 2 |
+| 敏 agi | 暴擊率 = 敏 × 1.5%(上限 40%);獵手系的物攻 + 敏 |
+| 智 int | 法術 = 智 × 2;靈力上限 + 智 |
+| 靈 spi | 治療 = 靈 × 2;抗性 = 靈 + 智/2;靈力上限 + 靈 × 2;每回合回靈 2 + 靈/3;祭司的法術 + 靈 |
+| 體 vit | 生命 = 20 + 體 × 6;防禦 = 體 + 職業護甲 |
 
-The reference video supplied for the project is a defensive PvP clear advertised as taking under two minutes without losing a regiment. That informed two product targets: battles should reach meaningful contact quickly, and keeping every ally alive should be a visible mastery goal.
+屬性 = 職業基礎 + 每級自動成長 ×(等級 − 1)+ 自由點數。每升一級得 3 點自由點數,可以在「同伴」畫面分配、重置。每 100 經驗升一級,上限 10 級。
 
-InnoGames' public description of Warlords of Aternum identifies several structural strengths: up to five deployed regiments, mixed melee/ranged/magic roles, terrain-dependent outcomes, unique abilities, and compact mobile sessions. Its support documentation describes terrain as a strategic layer and shows examples such as forest damage reduction, hill attack bonuses, marsh movement interruption, villages that heal, and blocking water.
+### 傷害
 
-The WoT implementation rebalances and recombines these general ideas:
+```
+傷害 = 攻擊力 × 技能威力 × 30 / (30 + 防禦或抗性) × 修正
+修正:狂血(生命越低最多 +40%)、強化 +30%、鬣狗包圍(每隻相鄰同伴 +20%,最多 +40%)
+      × (1 − 地形承傷修正) × 守勢 0.7 × 圖騰 0.8 × 祖靈庇佑 0.9 × 難度
+暴擊 ×1.5(法師系法術 ×1.75)
+```
 
-- Forest reduces incoming normal attack damage by 35%.
-- Hill grants 25% attack power against a lower target.
-- Marsh ends movement and increases incoming normal damage by 20%.
-- Village restores 12% maximum health at the start of a round.
-- Water blocks ground movement.
+### 資源
 
-## Core Turn
+- 怒氣(Kapah、Hanup):開場 20,出手命中 +15、受傷 +10,上限 100。
+- 靈力(Inibs、Vukid、Rikat、Hanitu):開場全滿,每回合回復。
 
-1. Select one ready friendly regiment.
-2. Move within its movement allowance, respecting water, occupied cells, and marsh stopping rules.
-3. Attack a target in range, use the once-per-battle signature ability, or wait.
-4. When all friendly regiments have acted, the enemy phase begins.
-5. Villages heal surviving occupants when the next player round starts.
+### 技能形狀
 
-Damage begins with attack minus a portion of armor, then applies terrain and guarding modifiers plus a narrow variance band. This keeps displayed stats predictive without making repeated attacks identical.
+單體、弧斬(前方三格)、旋風(身邊一圈)、直線貫穿、範圍爆炸、連鎖跳躍、直線衝撞(擊退)。
 
-Opening deployment is profession-driven: archers and casters begin on the rear map edge; shield-halberd and priest units form the second line; builders and deer cavalry deploy farther forward as they join. Hold objectives must visually match their narrative terrain—for example, Chapter IV's high-ground objective is an actual hill cluster.
+### 狀態
 
-## Player Regiments
+暈眩(跳過一回合)、遲緩(移動 −2)、強化、守勢、挑釁(只能打施放者)、再生。減益在自己回合結束時 −1,增益在自己回合開始時 −1。
 
-| Regiment | Role | Signature ability | Tactical identity |
-| --- | --- | --- | --- |
-| 姚仁 | 盾戟兵 | 藤盾壁 | 以藤盾與石戟穩住陣線 |
-| 林曦 | 弓箭手 | 烽火箭 | 遠距離區域攻擊 |
-| 安湄 | 潮聲祭司 | 祖泉祝禱 | 回復附近盟友 |
-| 塔卡 | 死靈法師 | 祖魂追擊 | 召喚祖魂遠擊 |
-| 奈雅 | 航海法師 | 順潮風 | 操控潮風並引導航路 |
-| 卡維 | 聚落築造師 | 竹壁工事 | 建立守勢工事 |
-| 露瑪 | 草藥祭司 | 林息祝禱 | 強力群體治療 |
-| 巴努 | 水鹿騎兵 | 鹿角奔襲 | 五格高機動突擊 |
-| 希娜 | 窯火法師 | 陶窯烈焰 | 遠距離火焰區域攻擊 |
+### 地形
 
-## Ten-Node Campaign
+凍原、積雪、冰面(承傷 +15%)、玄武岩台地(承傷 −20%、遠程射程 +1)、針葉林(−25%)、淺灘、凍沼、海、亂石、營火(每回合回 15% 生命、寒祟不能進入)。
 
-1. 鳳鼻頭遺址 — 三人登岸。
-2. 歸仁八甲遺址 — 沿河尋找高地。
-3. 南關里東遺址 — 塔卡加入，四人同行。
-4. 南關里遺址 — 試種潮田。
-5. 網寮遺址 — 奈雅加入，五人同行。
-6. 牛稠子遺址 — 卡維加入，六人築長屋。
-7. 大崗山遺址 — 露瑪加入，七人取得石材與草藥。
-8. 桃子園遺址 — 巴努與水鹿加入，八人盟誓。
-9. 覆頂金遺址 — 希娜加入，九人共同體成形。
-10. 鵝鑾鼻第二史前遺址 — 九人在南方盡頭點亮星火。
+### 勝敗與評價
 
-## Audio Direction
+勝利條件:擊退全部、撐過 N 回合(或擊退首領)、淨化神獸。三人全倒 = 失敗(敗北仍保留一半經驗)。
+★ 勝利 ★ 沒有人倒下 ★ 在標準回合內。
 
-The primary score uses four original MP3 tracks: `Banner_of_Takao` for campaign and briefings, `Frontline_Calculations` for battle, `Victory_Over_Takao` for victory, and `Failed_war` for retreat. Music begins preloading when a scene opens, shows a loading/interaction hint, and starts after the browser receives a user gesture. The earlier procedural Web Audio score remains as a fallback.
+## 難度
 
-Friendly characters have individual two-note selection cues and distinct vocal pitch profiles. Every attack begins with a short synthesized battle cry, followed by role-specific melee, bow, sling, or ritual-magic sound. Movement and abilities retain separate procedural cues.
+溫和(野獸 −15%、可悔棋)/ 勇者 / 傳說(野獸血 +25%、傷害 +20%、AI 最精明)。
 
-## Campaign Presentation and Difficulty
+## 平衡
 
-Every stage opens with a full-screen illustrated briefing containing the battle context, objective, and round limit. Battles end in a dedicated illustrated result scene; victory and retreat use different art, narrative copy, color accents, ratings, and audio cues.
+`BALANCE=1 N=20 npx vitest run src/game/__tests__/balance.test.ts` 讓模擬玩家對打三個難度,並依平均經驗推進等級。
+模擬玩家比真人精準,勝率只當下限參考,以真人試玩回饋為準。
 
-The campaign remains tuned for approachability. Battles use 12–14 round limits, the party grows from three to nine, and stars reward victory, speed, and keeping every settler alive.
+## 命名
 
-## Source Notes
-
-- InnoGames newsroom, "Warlords of Aternum brings turn-based strategy to life on mobile like never before," August 8, 2018.
-- InnoGames customer support, "Why are there different types of Terrain?"
-- InnoGames customer support, "How can I use a regiment's Ability?"
-- YouTube video `7sMzdMhJCEw`, supplied by the project owner as a pacing and battle-flow reference.
-- National Museum of Prehistory, Taiwan Prehistoric Culture Cloud: Dapenkeng culture, Bajia, Fengbitou, and Niuchoutzu culture entries.
+見 [NAMES.md](NAMES.md)。
