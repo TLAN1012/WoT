@@ -196,6 +196,41 @@ export interface Unit {
   xpValue: number;
   /** 倒下(英雄)/淨化(神獸) */
   down?: boolean;
+  /** 配戴信物的效果;每場一次的用過會記在 charmUsed */
+  charms: CharmEffect[];
+  charmUsed: CharmEffect[];
+}
+
+// ── 信物 ──────────────────────────────────────────────
+export type SlotId = "brow" | "chest" | "navel";
+export type CharmEffect =
+  | "sureCrit"
+  | "dodgeOnce"
+  | "reviveOnce"
+  | "freeCastOnce"
+  | "openGuard"
+  | "regen5"
+  | "cdMinus"
+  | "noCC"
+  | "hpUp15"
+  | "spellUp10"
+  | "chillOnce"
+  | "magicRes15"
+  | "executioner"
+  | "moveUp"
+  | "killHeal";
+
+export interface KeepsakeDef {
+  id: string;
+  name: string;
+  lore: string;
+  effects: Record<SlotId, { effect: CharmEffect; desc: string }>;
+}
+
+/** 背包裡的一件信物(同一種可以有好幾件) */
+export interface KeepsakeItem {
+  uid: string;
+  id: string;
 }
 
 // ── 關卡 ──────────────────────────────────────────────
@@ -239,6 +274,10 @@ export interface BattleDef {
   intro: StoryPage[];
   outro: StoryPage[];
   defeat: StoryPage[];
+  /** 第一次勝利的獎勵信物 */
+  reward: string;
+  /** 勝利插圖 */
+  winArt: string;
   /** 章節地圖上的位置(%) */
   node: { x: number; y: number };
 }
@@ -259,7 +298,7 @@ export type Outcome = "ongoing" | "victory" | "defeat";
 
 export interface LogEntry {
   turn: number;
-  kind: "info" | "hit" | "heal" | "down" | "level" | "event" | "skill";
+  kind: "info" | "hit" | "heal" | "down" | "level" | "event" | "skill" | "charm" | "miss" | "drop";
   text: string;
   /** 飄字用 */
   at?: Hex;
@@ -282,6 +321,8 @@ export interface BattleState {
   difficulty: DifficultyId;
   /** 本場每位英雄獲得的經驗 */
   xp: Record<string, number>;
+  /** 本場撿到的信物 id(勝利才帶得走) */
+  drops: string[];
   nextId: number;
 }
 
@@ -315,5 +356,9 @@ export interface SaveState {
   heroes: Record<string, HeroProgress>;
   /** 關卡 id → 最佳星數 */
   stars: Record<string, number>;
+  inventory: KeepsakeItem[];
+  /** 英雄 → 位置 → 信物 uid */
+  equipment: Record<string, Partial<Record<SlotId, string>>>;
+  nextUid: number;
   seenIntro: string[];
 }

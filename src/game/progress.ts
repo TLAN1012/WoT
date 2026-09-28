@@ -7,7 +7,8 @@
 import { getClass, getFamily, MAX_LEVEL, POINTS_PER_LEVEL, XP_PER_LEVEL } from "./classes";
 import { getHero } from "./heroes";
 import { getSkill } from "./skills";
-import type { AttrId, Attrs, DifficultyId, HeroProgress, SaveState } from "./types";
+import { getKeepsake } from "./keepsakes";
+import type { AttrId, Attrs, CharmEffect, DifficultyId, HeroProgress, SaveState, SlotId } from "./types";
 
 export const ATTR_IDS: AttrId[] = ["str", "agi", "int", "spi", "vit"];
 const ZERO: Attrs = { str: 0, agi: 0, int: 0, spi: 0, vit: 0 };
@@ -108,7 +109,44 @@ export function newSave(difficulty: DifficultyId): SaveState {
     heroes: Object.fromEntries(party.map((id) => [id, newHero(id)])),
     stars: {},
     seenIntro: [],
+    inventory: [],
+    equipment: {},
+    nextUid: 1,
   };
+}
+
+// ── 信物 ──────────────────────────────────────────────
+export function grantKeepsake(s: SaveState, id: string): SaveState {
+  return { ...s, inventory: [...s.inventory, { uid: `k${s.nextUid}`, id }], nextUid: s.nextUid + 1 };
+}
+
+/** 戴上(uid)或取下(null);同一件信物從別人/別的位置移過來 */
+export function equip(s: SaveState, heroId: string, slot: SlotId, uid: string | null): SaveState {
+  const equipment: SaveState["equipment"] = {};
+  for (const [h, slots] of Object.entries(s.equipment)) {
+    equipment[h] = Object.fromEntries(Object.entries(slots).filter(([, u]) => u !== uid));
+  }
+  equipment[heroId] = { ...(equipment[heroId] ?? {}) };
+  if (uid) equipment[heroId][slot] = uid;
+  else delete equipment[heroId][slot];
+  return { ...s, equipment };
+}
+
+/** 誰戴著這件(沒人戴回傳 null) */
+export function wearer(s: SaveState, uid: string): { heroId: string; slot: SlotId } | null {
+  for (const [heroId, slots] of Object.entries(s.equipment))
+    for (const [slot, u] of Object.entries(slots)) if (u === uid) return { heroId, slot: slot as SlotId };
+  return null;
+}
+
+export function heroCharms(s: SaveState, heroId: string): CharmEffect[] {
+  const slots = s.equipment?.[heroId] ?? {};
+  const out: CharmEffect[] = [];
+  for (const [slot, uid] of Object.entries(slots)) {
+    const item = s.inventory.find((i) => i.uid === uid);
+    if (item) out.push(getKeepsake(item.id).effects[slot as SlotId].effect);
+  }
+  return out;
 }
 
 export function loadSave(): SaveState | null {
@@ -116,7 +154,9 @@ export function loadSave(): SaveState | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as SaveState;
-    return s.version === 1 ? s : null;
+    if (s.version !== 1) return null;
+    // 舊存檔沒有信物欄位
+    return { ...s, inventory: s.inventory ?? [], equipment: s.equipment ?? {}, nextUid: s.nextUid ?? 1 };
   } catch {
     return null;
   }

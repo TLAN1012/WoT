@@ -14,6 +14,8 @@ const DEFEAT = [{ text: "三人撤回安全的地方,包紮傷口、重新生火
 
 const B1: BattleDef = {
   id: "c1-shore",
+  reward: "hyena-head",
+  winArt: "win-shore",
   title: "離岸",
   subtitle: "大陸東南海岸・黎明",
   art: "coast",
@@ -75,6 +77,8 @@ const B1: BattleDef = {
 
 const B2: BattleDef = {
   id: "c1-basalt",
+  reward: "basalt-shard",
+  winArt: "win-basalt",
   title: "玄武岩之夜",
   subtitle: "陸橋中央的黑色高台(今日的澎湖)",
   art: "penghu",
@@ -139,6 +143,8 @@ const B2: BattleDef = {
 
 const B3: BattleDef = {
   id: "c1-blight",
+  reward: "elephant-blessing",
+  winArt: "win-blight",
   title: "寒祟古象",
   subtitle: "陸橋東端・濃霧中的冰原",
   art: "blight",

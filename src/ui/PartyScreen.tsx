@@ -4,12 +4,36 @@
  */
 import { ATTR_NAMES, FAMILIES, getClass, getFamily, XP_PER_LEVEL } from "../game/classes";
 import { getHero } from "../game/heroes";
-import { ATTR_IDS, deriveStats, heroAttrs, resetPoints, spendPoint } from "../game/progress";
+import { getKeepsake, SLOTS } from "../game/keepsakes";
+import { ATTR_IDS, deriveStats, equip, heroAttrs, resetPoints, spendPoint, wearer } from "../game/progress";
 import { getSkill } from "../game/skills";
-import type { HeroProgress, SaveState } from "../game/types";
-import { portraitArt } from "./assets";
+import { useState } from "react";
+import type { HeroProgress, SaveState, SlotId } from "../game/types";
+import { keepsakeArt, portraitArt } from "./assets";
+import { KeepsakeCard } from "./KeepsakeCard";
 
-function HeroSheet({ p, onChange }: { p: HeroProgress; onChange: (p: HeroProgress) => void }) {
+function Slots({ save, heroId, onPick }: { save: SaveState; heroId: string; onPick: (slot: SlotId) => void }) {
+  const eq = save.equipment[heroId] ?? {};
+  return (
+    <div className="slots">
+      {SLOTS.map((s) => {
+        const item = eq[s.id] ? save.inventory.find((i) => i.uid === eq[s.id]) : undefined;
+        const k = item ? getKeepsake(item.id) : null;
+        return (
+          <button key={s.id} className={`slot-box ${k ? "filled" : ""}`} onClick={() => onPick(s.id)}>
+            <span className="slot-name">
+              {s.name}・{s.realm}
+            </span>
+            {k ? <img src={keepsakeArt(k.id)} alt="" /> : <span style={{ fontSize: 26, opacity: 0.35, lineHeight: "48px" }}>○</span>}
+            <span className="slot-eff">{k ? `${k.name}:${k.effects[s.id].desc}` : s.desc}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function HeroSheet({ p, save, onChange, onPick }: { p: HeroProgress; save: SaveState; onChange: (p: HeroProgress) => void; onPick: (slot: SlotId) => void }) {
   const hero = getHero(p.id);
   const cls = getClass(hero.classId);
   const fam = getFamily(cls.family);
@@ -42,6 +66,9 @@ function HeroSheet({ p, onChange }: { p: HeroProgress; onChange: (p: HeroProgres
           </div>
         </div>
       </div>
+      <div className="divider" />
+      <div className="paper-title">信物</div>
+      <Slots save={save} heroId={p.id} onPick={onPick} />
       <div className="divider" />
       <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
         <div>
@@ -117,6 +144,8 @@ function HeroSheet({ p, onChange }: { p: HeroProgress; onChange: (p: HeroProgres
 export function PartyScreen(props: { save: SaveState; onChange: (s: SaveState) => void; onBack: () => void }) {
   const { save } = props;
   const met = new Set(save.party.map((id) => getClass(getHero(id).classId).family));
+  const [picking, setPicking] = useState<{ heroId: string; slot: SlotId } | null>(null);
+  const current = picking ? save.equipment[picking.heroId]?.[picking.slot] : undefined;
   return (
     <div className="screen">
       <div className="content grid">
@@ -130,8 +159,57 @@ export function PartyScreen(props: { save: SaveState; onChange: (s: SaveState) =
           每升一級,職業會自動成長,另外還有 3 點可以自由分配。想讓巴度更耐打就加「體」,想讓比杜的閃電更痛就加「智」。
         </div>
         {save.party.map((id) => (
-          <HeroSheet key={id} p={save.heroes[id]} onChange={(p) => props.onChange({ ...save, heroes: { ...save.heroes, [id]: p } })} />
+          <HeroSheet
+            key={id}
+            p={save.heroes[id]}
+            save={save}
+            onChange={(p) => props.onChange({ ...save, heroes: { ...save.heroes, [id]: p } })}
+            onPick={(slot) => setPicking({ heroId: id, slot })}
+          />
         ))}
+        {picking && (
+          <div className="modal" onClick={() => setPicking(null)}>
+            <div className="paper fade-in" onClick={(e) => e.stopPropagation()}>
+              <div className="paper-title">
+                {getHero(picking.heroId).name}的{SLOTS.find((x) => x.id === picking.slot)!.name}({SLOTS.find((x) => x.id === picking.slot)!.realm})
+              </div>
+              {current && (
+                <button
+                  className="btn btn-sm"
+                  style={{ marginBottom: 10 }}
+                  onClick={() => {
+                    props.onChange(equip(save, picking.heroId, picking.slot, null));
+                    setPicking(null);
+                  }}
+                >
+                  取下
+                </button>
+              )}
+              {save.inventory.length === 0 && <div style={{ fontSize: 14 }}>還沒有信物。每場戰鬥第一次勝利會得到一件,野獸有時也會留下東西。</div>}
+              {save.inventory.map((item) => {
+                const w = wearer(save, item.uid);
+                return (
+                  <button
+                    key={item.uid}
+                    className="pick"
+                    style={item.uid === current ? { borderColor: "var(--ochre)" } : undefined}
+                    onClick={() => {
+                      props.onChange(equip(save, picking.heroId, picking.slot, item.uid));
+                      setPicking(null);
+                    }}
+                  >
+                    <KeepsakeCard id={item.id} highlight={picking.slot} compact />
+                    {w && (
+                      <div className="sub" style={{ fontSize: 12, marginTop: 4 }}>
+                        目前戴在{getHero(w.heroId).name}的{SLOTS.find((x) => x.id === w.slot)!.name}上(選了會移過來)
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="paper">
           <div className="paper-title">六大職業系・族語的名字</div>
           <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>

@@ -4,6 +4,7 @@ import { getHero } from "../game/heroes";
 import type { BattleResult } from "../game/battle";
 import type { HeroProgress } from "../game/types";
 import { portraitArt, storyArt } from "./assets";
+import { KeepsakeCard } from "./KeepsakeCard";
 
 export interface HeroGain {
   before: HeroProgress;
@@ -11,11 +12,21 @@ export interface HeroGain {
   xp: number;
 }
 
-export function ResultScreen(props: { title: string; result: BattleResult; gains: HeroGain[]; parTurns: number; onNext: () => void; onRetry: () => void }) {
+export function ResultScreen(props: {
+  title: string;
+  result: BattleResult;
+  gains: HeroGain[];
+  parTurns: number;
+  /** 這次新得到的信物(首勝獎勵 + 掉落) */
+  rewards: string[];
+  winArt: string;
+  onNext: () => void;
+  onRetry: () => void;
+}) {
   const { result } = props;
   return (
     <div className="result">
-      <div className="screen-bg" style={{ backgroundImage: `url(${storyArt(result.victory ? "victory" : "defeat")})` }} />
+      <div className="screen-bg" style={{ backgroundImage: `url(${storyArt(result.victory ? props.winArt : "defeat")})` }} />
       <div className="paper fade-in" style={{ position: "relative" }}>
         <div className="row">
           <div className="grow">
@@ -55,6 +66,20 @@ export function ResultScreen(props: { title: string; result: BattleResult; gains
             );
           })}
         </div>
+        {props.rewards.length > 0 && (
+          <>
+            <div className="divider" />
+            <div className="paper-title">獲得信物</div>
+            <div className="grid" style={{ gap: 14 }}>
+              {props.rewards.map((id, i) => (
+                <div key={i} className="reward" style={{ animationDelay: `${0.3 + i * 0.25}s`, animationFillMode: "backwards" }}>
+                  <KeepsakeCard id={id} />
+                </div>
+              ))}
+            </div>
+            <div className="sub" style={{ marginTop: 8, fontSize: 12.5 }}>到「同伴」畫面,把信物戴在額頭、胸前或肚臍——位置不同,力量也不同。</div>
+          </>
+        )}
         <div className="row" style={{ marginTop: 16, justifyContent: "flex-end" }}>
           {!result.victory && (
             <button className="btn" onClick={props.onRetry}>

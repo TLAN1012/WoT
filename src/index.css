@@ -193,8 +193,28 @@ img { -webkit-user-drag: none; user-select: none; }
 .hit-flash { animation: hitflash .35s ease; }
 @keyframes hitflash { 30% { filter: brightness(2.2) saturate(0.2); } }
 
-.result { position: fixed; inset: 0; z-index: 25; display: grid; place-items: center; padding: 16px; overflow: auto; }
-.result .paper { width: min(560px, 100%); }
+.result { position: fixed; inset: 0; z-index: 25; display: flex; padding: 16px; overflow: auto; }
+.result .paper { width: min(560px, 100%); margin: auto; }
 .level-up { color: var(--ochre); font-weight: 700; font-family: var(--font-ui); }
 
 .link { color: var(--paper); text-decoration: underline; text-underline-offset: 3px; opacity: 0.85; font-size: 13px; }
+
+/* ── 信物 ─────────────────────────────── */
+.keepsake-card { display: grid; grid-template-columns: 96px 1fr; gap: 12px; align-items: start; }
+.keepsake-art { width: 96px; height: 96px; object-fit: contain; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.35)); background: radial-gradient(circle, rgba(255,255,255,0.7), transparent 70%); border-radius: 50%; }
+.slot-line { display: grid; grid-template-columns: 62px 1fr; gap: 6px; font-size: 13px; line-height: 1.5; padding: 2px 6px; border-radius: 6px; }
+.slot-line b { font-family: var(--font-ui); color: var(--bark); }
+.slot-line.on { background: rgba(181,70,46,0.14); }
+.slot-line.off { opacity: 0.5; }
+.reward { animation: reward-in .7s cubic-bezier(.2,1.4,.4,1); }
+@keyframes reward-in { from { opacity: 0; transform: scale(0.85) rotate(-2deg); } to { opacity: 1; transform: none; } }
+.slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.slot-box { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 4px; border: 2px dashed rgba(90,67,48,0.45); border-radius: 12px; background: rgba(255,255,255,0.35); cursor: pointer; font-family: inherit; color: var(--ink); min-height: 104px; }
+.slot-box.filled { border-style: solid; border-color: var(--bark); background: rgba(255,255,255,0.6); }
+.slot-box img { width: 48px; height: 48px; object-fit: contain; }
+.slot-box .slot-name { font-family: var(--font-ui); font-weight: 600; font-size: 13px; color: var(--bark); }
+.slot-box .slot-eff { font-size: 11px; line-height: 1.35; text-align: center; color: var(--muted); }
+.modal { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; background: rgba(10,14,11,0.6); }
+.modal .paper { width: min(560px, 100%); max-height: 86vh; overflow: auto; }
+.pick { display: block; width: 100%; text-align: left; padding: 10px; border: 2px solid transparent; border-radius: 10px; background: rgba(255,255,255,0.4); cursor: pointer; font-family: inherit; color: var(--ink); margin-bottom: 8px; }
+.pick:hover { border-color: var(--bark); }

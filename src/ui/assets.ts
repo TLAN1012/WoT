@@ -8,3 +8,4 @@ export const storyArt = (id: string) => `${BASE}art/story/${id}.webp`;
 
 /** 原圖朝左的小人(畫的時候要求朝右,但畫室偶爾會畫反;在這裡登記) */
 export const SPRITE_FACES_LEFT = new Set<string>([]);
+export const keepsakeArt = (id: string) => `${BASE}art/keepsakes/${id}.webp`;

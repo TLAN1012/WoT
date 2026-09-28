@@ -10,7 +10,7 @@ import { audio, type BgmId } from "./audio/audio";
 import { battleResult, initBattle, type BattleResult } from "./game/battle";
 import { CHAPTERS } from "./game/chapters";
 import { getDifficulty } from "./game/difficulty";
-import { gainXp, loadSave, newSave, writeSave, clearSave } from "./game/progress";
+import { gainXp, grantKeepsake, loadSave, newSave, writeSave, clearSave } from "./game/progress";
 import type { BattleDef, BattleState, SaveState, StoryPage } from "./game/types";
 import { BattleScreen } from "./ui/BattleScreen";
 import { ChapterScreen } from "./ui/ChapterScreen";
@@ -37,7 +37,7 @@ export default function App() {
   const [story, setStory] = useState<StoryState | null>(null);
   const [battleDef, setBattleDef] = useState<BattleDef | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
-  const [result, setResult] = useState<{ result: BattleResult; gains: HeroGain[] } | null>(null);
+  const [result, setResult] = useState<{ result: BattleResult; gains: HeroGain[]; rewards: string[] } | null>(null);
 
   useEffect(() => {
     if (save) writeSave(save);
@@ -101,9 +101,14 @@ export default function App() {
       heroes[id] = g.hero;
       gains.push({ before, after: g.hero, xp: r.xp[id] ?? 0 });
     }
+    const firstWin = r.victory && !save.stars[battleDef.id];
     const stars = r.victory ? { ...save.stars, [battleDef.id]: Math.max(save.stars[battleDef.id] ?? 0, r.stars) } : save.stars;
-    setSave({ ...save, heroes, stars });
-    setResult({ result: r, gains });
+    // 首勝獎勵信物 + 戰場掉落
+    const rewards = [...(firstWin ? [battleDef.reward] : []), ...r.drops];
+    let next: SaveState = { ...save, heroes, stars };
+    for (const id of rewards) next = grantKeepsake(next, id);
+    setSave(next);
+    setResult({ result: r, gains, rewards });
     setScreen("result");
   }, [save, battle, battleDef]);
 
@@ -177,7 +182,7 @@ export default function App() {
     );
   }
   if (screen === "result" && result && battleDef) {
-    return <ResultScreen title={battleDef.title} result={result.result} gains={result.gains} parTurns={battleDef.parTurns} onNext={afterResult} onRetry={() => startBattle(battleDef, true)} />;
+    return <ResultScreen title={battleDef.title} result={result.result} gains={result.gains} parTurns={battleDef.parTurns} rewards={result.rewards} winArt={battleDef.winArt} onNext={afterResult} onRetry={() => startBattle(battleDef, true)} />;
   }
   return (
     <ChapterScreen

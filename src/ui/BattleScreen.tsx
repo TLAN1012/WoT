@@ -28,6 +28,7 @@ import {
 import { getClass, getFamily } from "../game/classes";
 import { getEnemy } from "../game/enemies";
 import { getHero } from "../game/heroes";
+import { charmInfo } from "../game/keepsakes";
 import { getSkill, skillArea } from "../game/skills";
 import { getTerrain } from "../game/terrain";
 import type { BattleState, StatusId, Unit } from "../game/types";
@@ -126,6 +127,14 @@ export function BattleScreen(props: BattleScreenProps) {
       } else if (e.kind === "heal" && e.at) {
         add.push({ id: Math.random(), at: e.at, text: `+${e.amount}`, color: "#8fe38a" });
         audio.sfx("heal");
+      } else if (e.kind === "miss" && e.at) {
+        add.push({ id: Math.random(), at: e.at, text: "落空", color: "#e8f0ff" });
+      } else if (e.kind === "charm") {
+        if (e.at) add.push({ id: Math.random(), at: e.at, text: "✦ 信物", color: "#ffe08a" });
+        setBanner({ id: Date.now(), text: "✦ 信物發動", sub: e.text.replace(/^✦ /, "") });
+        audio.sfx("heal");
+      } else if (e.kind === "drop") {
+        setBanner({ id: Date.now(), text: "🎁 撿到信物", sub: e.text.replace(/^🎁 /, "") });
       } else if (e.kind === "down") {
         audio.sfx("down");
       } else if (e.kind === "event") {
@@ -582,6 +591,20 @@ export function BattleScreen(props: BattleScreenProps) {
                   {inspected.statuses.map((s) => `${STATUS_ICON[s.id]}${STATUS_NAME[s.id]} ${s.turns}`).join("　")}
                 </div>
               )}
+              {inspected.charms.length > 0 && (
+                <div style={{ fontSize: 12, marginTop: 2 }}>
+                  {inspected.charms.map((c) => {
+                    const info = charmInfo(c);
+                    const used = inspected.charmUsed.includes(c);
+                    return (
+                      <div key={c} style={{ opacity: used ? 0.5 : 1 }}>
+                        ✦ {info?.keepsake.name}:{info?.desc}
+                        {used && "(已發動)"}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               {!inspected.isHero && inspected.skills.length > 0 && (
                 <div className="sub" style={{ fontSize: 12 }}>
                   招式:{inspected.skills.map((id) => getSkill(id).name).join("、")}
@@ -594,7 +617,7 @@ export function BattleScreen(props: BattleScreenProps) {
         {logOpen && (
           <div className="hud-card paper log">
             {battle.log.slice(-60).map((e, i) => (
-              <div key={i} style={{ color: e.kind === "event" ? "var(--ochre)" : e.kind === "info" ? "var(--muted)" : undefined }}>
+              <div key={i} style={{ color: e.kind === "event" || e.kind === "charm" || e.kind === "drop" ? "var(--ochre)" : e.kind === "info" ? "var(--muted)" : undefined }}>
                 {e.text}
               </div>
             ))}

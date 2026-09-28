@@ -14,10 +14,11 @@ import { getDifficulty } from "./difficulty";
 import { getEnemy } from "./enemies";
 import { getHero } from "./heroes";
 import { cellToHex, parseMap } from "./maps";
-import { deriveStats, heroSkills } from "./progress";
+import { deriveStats, heroCharms, heroSkills } from "./progress";
 import { getSkill, lineDirection, skillArea } from "./skills";
 import { getTerrain } from "./terrain";
-import type { BattleDef, BattleState, HeroProgress, LogEntry, Placement, SaveState, Side, SkillDef, Status, StatusId, Unit } from "./types";
+import { DROPS, getKeepsake } from "./keepsakes";
+import type { BattleDef, BattleState, CharmEffect, HeroProgress, LogEntry, Placement, SaveState, Side, SkillDef, Status, StatusId, Unit } from "./types";
 
 const DEBUFFS: StatusId[] = ["stun", "slow"];
 export const RAGE_ON_HIT = 15;
@@ -25,10 +26,11 @@ export const RAGE_ON_HURT = 10;
 export const MAX_WISPS = 5;
 
 // ── 建立 ──────────────────────────────────────────────
-export function heroUnit(p: HeroProgress, pos: Hex): Unit {
+export function heroUnit(p: HeroProgress, pos: Hex, charms: CharmEffect[] = []): Unit {
   const h = getHero(p.id);
   const st = deriveStats(p);
   const fam = getFamily(getClass(h.classId).family);
+  const hpMax = Math.round(st.maxHp * (charms.includes("hpUp15") ? 1.15 : 1));
   return {
     id: h.id,
     side: "hero",
@@ -37,8 +39,8 @@ export function heroUnit(p: HeroProgress, pos: Hex): Unit {
     isHero: true,
     pos,
     level: p.level,
-    maxHp: st.maxHp,
-    hp: st.maxHp,
+    maxHp: hpMax,
+    hp: hpMax,
     resource: fam.resource,
     maxRes: st.maxRes,
     res: fam.resource === "rage" ? 20 : st.maxRes,
@@ -49,13 +51,15 @@ export function heroUnit(p: HeroProgress, pos: Hex): Unit {
     def: st.def,
     mdef: st.mdef,
     crit: st.crit,
-    move: st.move,
+    move: st.move + (charms.includes("moveUp") ? 1 : 0),
     skills: heroSkills(p),
     cooldowns: {},
-    statuses: [],
+    statuses: charms.includes("openGuard") ? [{ id: "guard", turns: 2 }] : [],
     moved: false,
     acted: false,
     xpValue: 0,
+    charms,
+    charmUsed: [],
   };
 }
 
@@ -90,6 +94,8 @@ export function enemyUnit(pl: Placement, difficulty: BattleState["difficulty"], 
     moved: false,
     acted: false,
     xpValue: e.xp,
+    charms: [],
+    charmUsed: [],
   };
 }
 
@@ -97,7 +103,7 @@ export function initBattle(def: BattleDef, save: SaveState, seed = Date.now() % 
   const terrain = parseMap(def.map);
   const heroes = def.heroes
     .filter((h) => save.party.includes(h.heroId))
-    .map((h) => heroUnit(save.heroes[h.heroId], cellToHex(h.cell)));
+    .map((h) => heroUnit(save.heroes[h.heroId], cellToHex(h.cell), heroCharms(save, h.heroId)));
   const enemies = def.enemies.map((e) => enemyUnit(e, save.difficulty));
   const state: BattleState = {
     battleId: def.id,
@@ -112,6 +118,7 @@ export function initBattle(def: BattleDef, save: SaveState, seed = Date.now() % 
     seed,
     difficulty: save.difficulty,
     xp: Object.fromEntries(heroes.map((h) => [h.id, 0])),
+    drops: [],
     nextId: 1,
   };
   return state;
@@ -311,7 +318,22 @@ export function computeDamage(s: BattleState, attacker: Unit, target: Unit, skil
   const base = skill.scale === "phys" ? attacker.atk : attacker.mag;
   const raw = base * skill.power * Math.pow(0.75, hop);
   const def = skill.scale === "phys" ? target.def : target.mdef;
-  return Math.max(1, Math.round(raw * (30 / (30 + def)) * damageMultiplier(s, attacker, target)));
+  let mult = damageMultiplier(s, attacker, target);
+  // 信物
+  if (skill.scale === "magic" && attacker.charms.includes("spellUp10")) mult *= 1.1;
+  if (attacker.charms.includes("executioner") && target.hp < target.maxHp / 2) mult *= 1.2;
+  if (skill.scale === "magic" && target.charms.includes("magicRes15")) mult *= 0.85;
+  return Math.max(1, Math.round(raw * (30 / (30 + def)) * mult));
+}
+
+/** 每場一次的信物效果還沒用過 */
+export function charmReady(u: Unit, e: CharmEffect): boolean {
+  return u.charms.includes(e) && !u.charmUsed.includes(e);
+}
+
+function spendCharm(s: BattleState, u: Unit, e: CharmEffect, text: string): BattleState {
+  s = mapUnit(s, u.id, (x) => ({ ...x, charmUsed: [...x.charmUsed, e] }));
+  return log(s, { kind: "charm", text: `✦ ${u.name}的信物:${text}`, at: getUnit(s, u.id)!.pos });
 }
 
 export function computeHeal(attacker: Unit, skill: SkillDef): number {
@@ -389,6 +411,7 @@ function log(s: BattleState, e: Omit<LogEntry, "turn">): BattleState {
 }
 
 function addStatus(u: Unit, st: Status): Unit {
+  if (u.charms.includes("noCC") && DEBUFFS.includes(st.id)) return u;
   const others = u.statuses.filter((x) => x.id !== st.id);
   return { ...u, statuses: [...others, st] };
 }
@@ -424,6 +447,11 @@ function applyDamage(s: BattleState, attacker: Unit, targetId: string, amount: n
     res: x.resource === "rage" ? Math.min(x.maxRes, x.res + RAGE_ON_HURT) : x.res,
   }));
   s = log(s, { kind: "hit", text: `${attacker.name} → ${t.name} ${amount}${crit ? "(暴擊!)" : ""}`, at: t.pos, amount, crit });
+  if (hp <= 0 && charmReady(t, "reviveOnce")) {
+    const back = Math.max(1, Math.ceil(t.maxHp * 0.05));
+    s = mapUnit(s, targetId, (x) => ({ ...x, hp: back }));
+    return spendCharm(s, t, "reviveOnce", `倒下的瞬間又站了起來(生命 ${back})`);
+  }
   if (hp <= 0) {
     const e = t.isHero ? null : getEnemy(t.defId);
     s = mapUnit(s, targetId, (x) => ({ ...x, down: true, statuses: [] }));
@@ -434,6 +462,22 @@ function applyDamage(s: BattleState, attacker: Unit, targetId: string, amount: n
       const others = living(s, "hero").filter((h) => h.isHero && h.id !== attacker.id);
       s = addXp(s, attacker.id, Math.round(t.xpValue * (others.length ? 0.5 : 1)));
       for (const o of others) s = addXp(s, o.id, Math.round((t.xpValue * 0.5) / others.length));
+      if (attacker.charms.includes("killHeal")) {
+        const a = getUnit(s, attacker.id)!;
+        const heal = Math.min(a.maxHp - a.hp, Math.round(a.maxHp * 0.1));
+        if (heal > 0) {
+          s = mapUnit(s, a.id, (x) => ({ ...x, hp: x.hp + heal }));
+          s = log(s, { kind: "heal", text: `${a.name} 擊倒回復 +${heal}`, at: a.pos, amount: heal });
+        }
+      }
+      // 掉落
+      for (const d of DROPS[t.defId] ?? []) {
+        if (roll(s, 99 + s.drops.length) < d.chance) {
+          s = { ...s, drops: [...s.drops, d.keepsake] };
+          s = log(s, { kind: "drop", text: `🎁 ${t.name}留下了「${getKeepsake(d.keepsake).name}」(勝利後帶走)`, at: t.pos });
+          break;
+        }
+      }
     }
   }
   return s;
@@ -442,11 +486,14 @@ function applyDamage(s: BattleState, attacker: Unit, targetId: string, amount: n
 function executeSkill(s: BattleState, u: Unit, skill: SkillDef, target: Hex): BattleState {
   let from = u.pos;
   // 付出代價、進入冷卻
+  const free = skill.cost > 0 && !!u.resource && charmReady(u, "freeCastOnce");
+  const cd = skill.cooldown ? skill.cooldown + (u.charms.includes("cdMinus") ? 0 : 1) : 0;
   s = mapUnit(s, u.id, (x) => ({
     ...x,
-    res: x.resource ? x.res - skill.cost : x.res,
-    cooldowns: skill.cooldown ? { ...x.cooldowns, [skill.id]: skill.cooldown + 1 } : x.cooldowns,
+    res: x.resource && !free ? x.res - skill.cost : x.res,
+    cooldowns: cd ? { ...x.cooldowns, [skill.id]: cd } : x.cooldowns,
   }));
+  if (free) s = spendCharm(s, u, "freeCastOnce", `${skill.name}不消耗${u.resource === "rage" ? "怒氣" : "靈力"}`);
   s = log(s, { kind: "skill", text: `${u.name}:${skill.icon} ${skill.name}`, at: target, skill: skill.id });
 
   if (skill.shape === "dash") {
@@ -502,13 +549,28 @@ function executeSkill(s: BattleState, u: Unit, skill: SkillDef, target: Hex): Ba
     const cur = getUnit(s, v.id);
     if (!cur || cur.down) return;
     const atk = getUnit(s, u.id)!;
+    // 胸:攻擊落空
+    if (charmReady(cur, "dodgeOnce") && roll(s, 50 + i) < 0.4) {
+      s = spendCharm(s, cur, "dodgeOnce", `${atk.name}的攻擊落空了`);
+      s = log(s, { kind: "miss", text: `${atk.name} → ${cur.name} 落空`, at: cur.pos });
+      return;
+    }
     let amount = computeDamage(s, atk, cur, skill, skill.shape === "chain" ? i : 0);
     const critMul = atk.isHero && getClass(getHero(atk.defId).classId).family === "rikat" && skill.scale === "magic" ? 1.75 : 1.5;
-    const crit = roll(s, i + 1) < atk.crit;
+    let crit = roll(s, i + 1) < atk.crit;
+    if (!crit && charmReady(atk, "sureCrit")) {
+      crit = true;
+      s = spendCharm(s, atk, "sureCrit", "看穿破綻,必定暴擊");
+    }
     if (crit) amount = Math.round(amount * critMul);
-    s = applyDamage(s, atk, v.id, amount, crit);
+    s = applyDamage(s, getUnit(s, u.id)!, v.id, amount, crit);
     dealt = true;
     const after = getUnit(s, v.id)!;
+    // 胸:第一次被攻擊時讓攻擊者遲緩
+    if (charmReady(after, "chillOnce")) {
+      s = spendCharm(s, after, "chillOnce", `寒氣纏住了${atk.name}`);
+      s = mapUnit(s, atk.id, (x) => addStatus(x, { id: "slow", turns: 1 }));
+    }
     if (!after.down) {
       const sts = skill.shape === "chain" ? (i === 0 ? skill.statuses : undefined) : skill.statuses;
       for (const st of sts ?? []) s = mapUnit(s, v.id, (x) => addStatus(x, { ...st }));
@@ -608,6 +670,7 @@ function beginSide(s: BattleState): BattleState {
     if (t.heal) healed += Math.round(u.maxHp * t.heal);
     const regen = u.statuses.find((st) => st.id === "regen");
     if (regen) healed += regen.value ?? 0;
+    if (u.charms.includes("regen5")) healed += Math.round(u.maxHp * 0.05);
     // 圖騰光環
     for (const tot of living(out, side).filter((x) => x.defId === "totem" && hexDistance(x.pos, u.pos) === 1)) {
       healed += getEnemy(tot.defId).aura?.heal ?? 0;
@@ -672,6 +735,8 @@ export interface BattleResult {
   turns: number;
   fallen: string[];
   xp: Record<string, number>;
+  /** 勝利才帶得走的掉落信物 */
+  drops: string[];
 }
 
 export const VICTORY_XP = 40;
@@ -687,5 +752,5 @@ export function battleResult(s: BattleState, parTurns: number): BattleResult {
     // 敗北仍保留一半經驗(撤退重來不會白打)
     xp[h.id] = victory ? base + VICTORY_XP : Math.floor(base / 2);
   }
-  return { victory, stars, turns: s.turn, fallen, xp };
+  return { victory, stars, turns: s.turn, fallen, xp, drops: victory ? s.drops : [] };
 }
