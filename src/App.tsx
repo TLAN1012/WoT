@@ -48,12 +48,15 @@ export default function App() {
   }, [save]);
 
   useEffect(() => {
+    // 手機瀏覽器對「算不算使用者手勢」的認定不一,全部掛上;切回前景時也試著喚醒
     const unlock = () => audio.unlock();
-    window.addEventListener("pointerdown", unlock);
-    window.addEventListener("keydown", unlock);
+    const events = ["pointerdown", "touchend", "click", "keydown"] as const;
+    events.forEach((e) => window.addEventListener(e, unlock, { passive: true }));
+    const onVisible = () => document.visibilityState === "visible" && audio.unlock();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
+      events.forEach((e) => window.removeEventListener(e, unlock));
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 

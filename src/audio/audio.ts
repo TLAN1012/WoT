@@ -34,18 +34,38 @@ class Audio {
     }
   })();
 
+  /**
+   * 在使用者手勢中呼叫(pointerdown / touchend / click / keydown 都掛上,iOS 有些版本只認 touchend)。
+   *  - iOS 的靜音側鍵會讓 WebAudio 沒聲音:宣告 audioSession = "playback"(Safari 16.4+)就不受影響
+   *  - 第一次在手勢中播一段無聲的 buffer,確保 iOS 的音訊通道真的打開
+   *  - iOS 切到背景回來會變成 "interrupted"/"suspended",下一次手勢時 resume
+   */
   unlock() {
+    const nav = navigator as Navigator & { audioSession?: { type: string } };
+    try {
+      if (nav.audioSession && nav.audioSession.type !== "playback") nav.audioSession.type = "playback";
+    } catch {
+      /* 不支援就算了 */
+    }
     if (!this.ctx) {
+      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return;
       try {
-        this.ctx = new AudioContext();
+        this.ctx = new Ctor();
       } catch {
         return;
       }
       this.bus = this.ctx.createGain();
       this.bus.gain.value = this.muted ? 0 : 1;
       this.bus.connect(this.ctx.destination);
+      // 無聲的一小段,讓 iOS 在手勢當下真正啟動輸出
+      const silent = this.ctx.createBuffer(1, 1, 22050);
+      const src = this.ctx.createBufferSource();
+      src.buffer = silent;
+      src.connect(this.ctx.destination);
+      src.start(0);
     }
-    if (this.ctx.state === "suspended") void this.ctx.resume();
+    if (this.ctx.state !== "running") void this.ctx.resume().catch(() => undefined);
     if (this.wanted && this.voice?.id !== this.wanted) this.playBgm(this.wanted);
   }
 
@@ -58,6 +78,11 @@ class Audio {
         .then((b) => ctx.decodeAudioData(b));
       p.catch(() => this.buffers.delete(id));
       this.buffers.set(id, p);
+      // 一首 2 分半解碼後約 50MB:手機記憶體有限,只留最近 3 首(Map 依插入順序,先刪最舊的)
+      for (const k of this.buffers.keys()) {
+        if (this.buffers.size <= 3) break;
+        if (k !== id && k !== this.voice?.id) this.buffers.delete(k);
+      }
     }
     return p;
   }

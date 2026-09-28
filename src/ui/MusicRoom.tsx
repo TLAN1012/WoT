@@ -20,7 +20,7 @@ export function MusicRoom({ onBack }: { onBack: () => void }) {
           </button>
         </div>
         <div className="sub" style={{ color: "var(--paper)" }}>
-          每個段落有兩首不同風格的配樂,全部由我們自架的 ACE-Step 生成。「自動」會依場合選曲(例如海岸用太平洋打擊樂、玄武岩之夜用太鼓)。
+          每個段落有兩首不同風格的配樂,全部由我們自架的 ACE-Step 生成。「自動」會依場合選曲(例如海岸用太平洋打擊樂、玄武岩之夜用太鼓)。手機若沒有聲音,請確認側邊靜音鍵與音量,再點一下畫面。
         </div>
         {MUSIC.map((m) => (
           <div key={m.slot} className="paper">
