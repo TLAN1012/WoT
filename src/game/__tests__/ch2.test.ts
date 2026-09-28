@@ -1,17 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { battleReducer, getUnit, initFight, living } from "../battle";
-import { CHAPTERS, chapterUnlocked } from "../chapters";
+import { chapterUnlocked, getChapter } from "../chapters";
 import { hexKey } from "../../engine/hex";
 import { cellToHex } from "../maps";
 import { addShards, inherit, newSave, recruit } from "../progress";
 import type { BattleState } from "../types";
 
-const [T1] = CHAPTERS[1].battles;
+const CH2 = getChapter("ch2");
+const [T1] = CH2.battles;
 
 describe("第二景", () => {
   it("第一景全破才開放", () => {
-    expect(chapterUnlocked(CHAPTERS[1], {})).toBe(false);
-    expect(chapterUnlocked(CHAPTERS[1], { "c1-shore": 1, "c1-basalt": 1, "c1-blight": 2 })).toBe(true);
+    expect(chapterUnlocked(CH2, {})).toBe(false);
+    expect(chapterUnlocked(CH2, { "c1-shore": 1, "c1-basalt": 1, "c1-blight": 2 })).toBe(true);
   });
 
   it("祖名傳承:等級保留一半(至少 2)、點數全退、信物保留、只傳一次", () => {

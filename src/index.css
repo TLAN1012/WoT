@@ -224,3 +224,8 @@ img { -webkit-user-drag: none; user-select: none; }
   .battle-top { gap: 5px; padding-left: 8px; padding-right: 8px; }
   .battle-top .btn-icon { width: 36px; min-height: 36px; }
 }
+@media (max-width: 560px) {
+  .map-node .dot { width: 34px; height: 34px; font-size: 15px; border-width: 2px; }
+  .map-node .label { font-size: 10.5px; padding: 0 5px; }
+  .map-node .stars { font-size: 10px !important; }
+}

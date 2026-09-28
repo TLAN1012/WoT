@@ -5,10 +5,11 @@
 import { ATTR_NAMES, FAMILIES, getClass, getFamily, XP_PER_LEVEL } from "../game/classes";
 import { getHero, heroBio, HEROES } from "../game/heroes";
 import { getKeepsake, SLOTS } from "../game/keepsakes";
-import { ATTR_IDS, canRecruit, deriveStats, equip, heroAttrs, resetPoints, spendPoint, wearer } from "../game/progress";
+import { ATTR_IDS, canRecruit, canUpgrade, deriveStats, equip, heroAttrs, resetPoints, spendPoint, upgradeCost, upgradeKeepsake, wearer } from "../game/progress";
+import { MATERIAL_IDS, MATERIALS, SLOT_BONUS, slotBonus } from "../game/materials";
 import { getSkill } from "../game/skills";
 import { useState } from "react";
-import type { HeroProgress, SaveState, SlotId } from "../game/types";
+import type { HeroProgress, MaterialId, SaveState, SlotId } from "../game/types";
 import { keepsakeArt, portraitArt } from "./assets";
 import { KeepsakeCard } from "./KeepsakeCard";
 import { TypeBadge } from "./DeployBar";
@@ -26,7 +27,10 @@ function Slots({ save, heroId, onPick }: { save: SaveState; heroId: string; onPi
               {s.name}・{s.realm}
             </span>
             {k ? <img src={keepsakeArt(k.id)} alt="" /> : <span style={{ fontSize: 26, opacity: 0.35, lineHeight: "48px" }}>○</span>}
-            <span className="slot-eff">{k ? `${k.name}:${k.effects[s.id].desc}` : s.desc}</span>
+            <span className="slot-eff">
+              {k ? `${k.name}${(item?.level ?? 1) > 1 ? ` Lv${item?.level}` : ""}:${k.effects[s.id].desc}` : s.desc}
+              {k && (item?.level ?? 1) > 1 && <b style={{ display: "block", color: "var(--good)" }}>{SLOT_BONUS[s.id].label(slotBonus(s.id, item?.level ?? 1))}</b>}
+            </span>
           </button>
         );
       })}
@@ -144,6 +148,59 @@ function HeroSheet({ p, save, onChange, onPick }: { p: HeroProgress; save: SaveS
   );
 }
 
+function Workshop({ save, onChange }: { save: SaveState; onChange: (s: SaveState) => void }) {
+  if (!save.inventory.length) return null;
+  return (
+    <div className="paper">
+      <div className="paper-title">信物工坊</div>
+      <div className="row" style={{ gap: 12, fontSize: 14, marginBottom: 8 }}>
+        {MATERIAL_IDS.map((m) => (
+          <span key={m} className="row" style={{ gap: 2 }} title={MATERIALS[m].desc}>
+            <img src={keepsakeArt(`mat-${m}`)} alt="" style={{ width: 30, height: 30, objectFit: "contain" }} />
+            {MATERIALS[m].name} <b>{save.materials[m] ?? 0}</b>
+          </span>
+        ))}
+      </div>
+      <div className="sub" style={{ fontSize: 12.5, marginBottom: 8 }}>
+        材料在「間章」的試煉裡撿。信物每升一級,原本的特殊效果不變,另外依戴的位置加:額 傷害 +4%、胸 承傷 −4%、臍 生命 +6%(最高 Lv 5)。
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 10 }}>
+        {save.inventory.map((item) => {
+          const k = getKeepsake(item.id);
+          const lv = item.level ?? 1;
+          const cost = upgradeCost(lv);
+          const w = wearer(save, item.uid);
+          return (
+            <div key={item.uid} className="row" style={{ flexWrap: "nowrap", gap: 8, alignItems: "flex-start" }}>
+              <img src={keepsakeArt(k.id)} alt="" style={{ width: 52, height: 52, objectFit: "contain" }} />
+              <div className="grow" style={{ fontSize: 13 }}>
+                <b style={{ fontFamily: "var(--font-ui)", fontSize: 15 }}>{k.name}</b> <span className="chip">Lv {lv}</span>
+                {w && <span className="sub"> ・{getHero(w.heroId).name}的{SLOTS.find((x) => x.id === w.slot)!.name}</span>}
+                {w && lv > 1 && <div className="sub">目前加成:{SLOT_BONUS[w.slot].label(slotBonus(w.slot, lv))}</div>}
+                {cost ? (
+                  <div className="row" style={{ gap: 6, marginTop: 4 }}>
+                    <span className="sub">升到 Lv {lv + 1}:</span>
+                    {Object.entries(cost).map(([m, n]) => (
+                      <span key={m} style={{ color: (save.materials[m as MaterialId] ?? 0) >= (n ?? 0) ? "var(--good)" : "var(--ochre)" }}>
+                        {MATERIALS[m as MaterialId].name}×{n}
+                      </span>
+                    ))}
+                    <button className="btn btn-sm btn-moss" disabled={!canUpgrade(save, item.uid)} onClick={() => onChange(upgradeKeepsake(save, item.uid))}>
+                      升級
+                    </button>
+                  </div>
+                ) : (
+                  <div className="level-up">已經是最高等級</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function RecruitPanel({ save, onRecruit }: { save: SaveState; onRecruit: (id: string) => void }) {
   const candidates = HEROES.filter((h) => h.recruit && !save.party.includes(h.id));
   if (!candidates.length) return null;
@@ -216,6 +273,7 @@ export function PartyScreen(props: { save: SaveState; onChange: (s: SaveState) =
           每升一級,職業會自動成長,另外還有 3 點可以自由分配。想讓巴度更耐打就加「體」,想讓比杜的閃電更痛就加「智」。
         </div>
         <RecruitPanel save={save} onRecruit={props.onRecruit} />
+        <Workshop save={save} onChange={props.onChange} />
         {save.party.map((id) => (
           <HeroSheet
             key={id}

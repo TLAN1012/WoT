@@ -1,5 +1,7 @@
 /** 戰後結算:星數、經驗、升級 */
 import { XP_PER_LEVEL } from "../game/classes";
+import { MATERIALS } from "../game/materials";
+import type { MaterialId } from "../game/types";
 import { getHero } from "../game/heroes";
 import type { BattleResult } from "../game/battle";
 import type { HeroProgress } from "../game/types";
@@ -22,6 +24,9 @@ export function ResultScreen(props: {
   /** 這次撿到的足跡 */
   shards: Record<string, number>;
   shardTotals: Record<string, number>;
+  materials: Partial<Record<MaterialId, number>>;
+  /** 試煉難度(劇情關為 0) */
+  tier: number;
   winArt: string;
   onNext: () => void;
   onRetry: () => void;
@@ -40,7 +45,8 @@ export function ResultScreen(props: {
           </div>
           {result.victory && <div className="stars" style={{ fontSize: 30 }}>{"★".repeat(result.stars)}{"☆".repeat(3 - result.stars)}</div>}
         </div>
-        {result.victory && (
+        {result.victory && props.tier > 0 && <div className="sub" style={{ fontSize: 12.5 }}>通過 {props.tier}★ 試煉(試煉的經驗只有 1/10,但會掉材料)</div>}
+        {result.victory && props.tier === 0 && (
           <div className="sub" style={{ fontSize: 12.5 }}>
             ★ 勝利  {result.fallen.length === 0 ? "★" : "☆"} 沒有人倒下  {result.turns <= props.parTurns ? "★" : "☆"} {props.parTurns} 回合內({result.turns} 回合)
           </div>
@@ -69,6 +75,21 @@ export function ResultScreen(props: {
             );
           })}
         </div>
+        {Object.keys(props.materials).length > 0 && (
+          <>
+            <div className="divider" />
+            <div className="paper-title">撿到材料</div>
+            <div className="row" style={{ gap: 14 }}>
+              {Object.entries(props.materials).map(([m, n]) => (
+                <div key={m} className="reward row" style={{ gap: 4, fontSize: 15 }}>
+                  <img src={keepsakeArt(`mat-${m}`)} alt="" style={{ width: 44, height: 44, objectFit: "contain" }} />
+                  {MATERIALS[m as MaterialId].name} ×{n}
+                </div>
+              ))}
+            </div>
+            <div className="sub" style={{ fontSize: 12.5, marginTop: 6 }}>材料可以在「同伴」畫面的信物工坊升級信物。</div>
+          </>
+        )}
         {Object.keys(props.shards).length > 0 && (
           <>
             <div className="divider" />

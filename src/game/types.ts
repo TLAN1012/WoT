@@ -149,6 +149,8 @@ export interface EnemyDef {
   immobile?: boolean;
   /** 闊葉林/針葉林移動不減速(雲豹) */
   forestWalker?: boolean;
+  /** 淺灘、凍沼移動不減速(鱷魚) */
+  swimmer?: boolean;
   /** 被擊倒時是「淨化」而不是死亡 */
   purify?: boolean;
   /** 圖騰:每回合開始時治療周圍友軍 */
@@ -207,6 +209,9 @@ export interface Unit {
   xpValue: number;
   /** 倒下(英雄)/淨化(神獸) */
   down?: boolean;
+  /** 信物等級帶來的加成:傷害、減傷 */
+  bonusDmg?: number;
+  bonusGuard?: number;
   ctype?: CombatType;
   /** 配戴信物的效果;每場一次的用過會記在 charmUsed */
   charms: CharmEffect[];
@@ -252,7 +257,12 @@ export interface KeepsakeDef {
 export interface KeepsakeItem {
   uid: string;
   id: string;
+  /** 信物等級 1~5(用材料升級) */
+  level?: number;
 }
+
+/** 升級信物的材料 */
+export type MaterialId = "flint" | "shell" | "antler" | "obsidian";
 
 // ── 關卡 ──────────────────────────────────────────────
 export type Objective =
@@ -316,6 +326,16 @@ export interface BattleDef {
   reward: string;
   /** 勝利插圖 */
   winArt: string;
+  /** 敵人強度倍率(試煉後段的關卡更強) */
+  enemyScale?: number;
+  /** 經驗倍率(試煉關卡只有 1/10) */
+  xpScale?: number;
+  /** 試煉關卡:這關主要掉的材料 */
+  material?: MaterialId;
+  /** 試煉關卡:2★/3★ 多出來的敵人 */
+  tierExtras?: Partial<Record<2 | 3, Placement[]>>;
+  /** 遺址名(畫面上顯示) */
+  site?: string;
   /** 戰鬥配樂:段落與預設版本(玩家可在音樂室改) */
   music: { slot: "battle" | "boss"; variant: "a" | "b" };
   /** 章節地圖上的位置(%) */
@@ -328,6 +348,10 @@ export interface ChapterDef {
   generation: number;
   /** 前一章全破才開放 */
   requires?: string;
+  /** story = 劇情章;trial = 每關可選 1★~3★ 的試煉章(經驗少、掉材料) */
+  mode?: "story" | "trial";
+  /** 祖名傳承時等級至少保留到幾級 */
+  inheritFloor?: number;
   title: string;
   subtitle: string;
   era: string;
@@ -353,6 +377,8 @@ export interface LogEntry {
 
 export interface BattleState {
   battleId: string;
+  /** 試煉難度 1~3(劇情關固定 1) */
+  tier: number;
   /** 布陣中 / 戰鬥中 */
   phase: "deploy" | "fight";
   /** 沒上陣的英雄(布陣時可以換上) */
@@ -404,12 +430,15 @@ export interface SaveState {
   version: 1;
   /** 目前是第幾代(祖名傳承) */
   generation: number;
+  /** 上次所在的章節(繼續旅程回到這裡) */
+  lastChapter?: string;
   difficulty: DifficultyId;
   party: string[];
   heroes: Record<string, HeroProgress>;
   /** 關卡 id → 最佳星數 */
   stars: Record<string, number>;
   inventory: KeepsakeItem[];
+  materials: Partial<Record<MaterialId, number>>;
   /** 英雄 id → 撿到的足跡數 */
   shards: Record<string, number>;
   /** 英雄 → 位置 → 信物 uid */

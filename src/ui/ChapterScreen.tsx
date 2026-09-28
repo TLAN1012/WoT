@@ -1,5 +1,8 @@
 /** 章節地圖:鹿皮古地圖上的關卡節點 */
+import { useState } from "react";
 import { getDifficulty } from "../game/difficulty";
+import { MATERIALS } from "../game/materials";
+import { keepsakeArt } from "./assets";
 import { HEROES } from "../game/heroes";
 import { canRecruit } from "../game/progress";
 import type { BattleDef, ChapterDef, SaveState } from "../game/types";
@@ -9,7 +12,7 @@ import { MuteButton } from "./MuteButton";
 export function ChapterScreen(props: {
   chapter: ChapterDef;
   save: SaveState;
-  onBattle: (b: BattleDef) => void;
+  onBattle: (b: BattleDef, tier: number) => void;
   onParty: () => void;
   onPrologue: () => void;
   onEpilogue: () => void;
@@ -20,6 +23,9 @@ export function ChapterScreen(props: {
 }) {
   const { chapter, save } = props;
   const firstOpen = chapter.battles.findIndex((b) => !save.stars[b.id]);
+  const trial = chapter.mode === "trial";
+  const [picking, setPicking] = useState<BattleDef | null>(null);
+  const go = (b: BattleDef) => (trial ? setPicking(b) : props.onBattle(b, 1));
   const cleared = firstOpen === -1;
   const unspent = save.party.reduce((n, id) => n + save.heroes[id].unspent, 0);
   const recruitable = HEROES.filter((h) => canRecruit(save, h.id)).length;
@@ -62,7 +68,7 @@ export function ChapterScreen(props: {
             const locked = firstOpen !== -1 && i > firstOpen;
             const cls = stars ? "done" : locked ? "locked" : "next";
             return (
-              <button key={b.id} className={`map-node ${cls}`} style={{ left: `${b.node.x}%`, top: `${b.node.y}%` }} disabled={locked} onClick={() => props.onBattle(b)}>
+              <button key={b.id} className={`map-node ${cls}`} style={{ left: `${b.node.x}%`, top: `${b.node.y}%` }} disabled={locked} onClick={() => go(b)}>
                 <span className="dot">{i + 1}</span>
                 <span className="label">{b.title}</span>
                 {stars > 0 && <span className="stars" style={{ fontSize: 13 }}>{"★".repeat(stars)}{"☆".repeat(3 - stars)}</span>}
@@ -86,7 +92,7 @@ export function ChapterScreen(props: {
           )}
           <div className="row" style={{ marginTop: 12 }}>
             {!cleared && (
-              <button className="btn btn-primary" onClick={() => props.onBattle(chapter.battles[firstOpen])}>
+              <button className="btn btn-primary" onClick={() => go(chapter.battles[firstOpen])}>
                 出發
               </button>
             )}
@@ -107,6 +113,51 @@ export function ChapterScreen(props: {
           </div>
         </div>
       </div>
+      {picking && (
+        <div className="modal" onClick={() => setPicking(null)}>
+          <div className="paper fade-in" onClick={(e) => e.stopPropagation()}>
+            <div className="paper-title">{picking.title}</div>
+            <div style={{ fontSize: 14 }}>{picking.subtitle}・⚑ {picking.objectiveText}</div>
+            <div className="row" style={{ gap: 6, margin: "8px 0", fontSize: 13 }}>
+              主要材料:
+              {picking.material && (
+                <>
+                  <img src={keepsakeArt(`mat-${picking.material}`)} alt="" style={{ width: 30, height: 30, objectFit: "contain" }} />
+                  {MATERIALS[picking.material].name}
+                </>
+              )}
+            </div>
+            <div className="grid" style={{ gap: 8 }}>
+              {[1, 2, 3].map((t) => {
+                const best = save.stars[picking.id] ?? 0;
+                const open = t <= best + 1;
+                return (
+                  <button
+                    key={t}
+                    className={`btn btn-block ${t === best + 1 ? "btn-primary" : ""}`}
+                    disabled={!open}
+                    style={{ flexDirection: "column", gap: 2, borderRadius: 14 }}
+                    onClick={() => {
+                      setPicking(null);
+                      props.onBattle(picking, t);
+                    }}
+                  >
+                    <span>
+                      {"★".repeat(t)}
+                      {"☆".repeat(3 - t)} {t <= best ? "(已通過)" : ""}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 400, fontFamily: "var(--font)" }}>
+                      {t === 1 && "一般。燧石、貝殼。"}
+                      {t === 2 && (open ? "野獸更強、多一隻。有機會掉鹿角與足跡。" : "先通過 1★")}
+                      {t === 3 && (open ? "最強、再多兩隻。鹿角較多,有機會掉黑曜石。" : "先通過 2★")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

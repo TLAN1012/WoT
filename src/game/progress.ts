@@ -8,7 +8,8 @@ import { getClass, getFamily, MAX_LEVEL, POINTS_PER_LEVEL, XP_PER_LEVEL } from "
 import { getHero } from "./heroes";
 import { getSkill } from "./skills";
 import { getKeepsake } from "./keepsakes";
-import type { AttrId, Attrs, CharmEffect, DifficultyId, HeroProgress, SaveState, SlotId } from "./types";
+import { MAX_KEEPSAKE_LEVEL, slotBonus, UPGRADE_COST } from "./materials";
+import type { AttrId, Attrs, CharmEffect, DifficultyId, HeroProgress, MaterialId, SaveState, SlotId } from "./types";
 
 export const ATTR_IDS: AttrId[] = ["str", "agi", "int", "spi", "vit"];
 const ZERO: Attrs = { str: 0, agi: 0, int: 0, spi: 0, vit: 0 };
@@ -111,6 +112,7 @@ export function newSave(difficulty: DifficultyId): SaveState {
     stars: {},
     seenIntro: [],
     inventory: [],
+    materials: {},
     shards: {},
     equipment: {},
     nextUid: 1,
@@ -158,7 +160,7 @@ export function loadSave(): SaveState | null {
     const s = JSON.parse(raw) as SaveState;
     if (s.version !== 1) return null;
     // 舊存檔沒有信物欄位
-    return { ...s, inventory: s.inventory ?? [], equipment: s.equipment ?? {}, nextUid: s.nextUid ?? 1, shards: s.shards ?? {}, generation: s.generation ?? 1 };
+    return { ...s, inventory: s.inventory ?? [], equipment: s.equipment ?? {}, nextUid: s.nextUid ?? 1, shards: s.shards ?? {}, generation: s.generation ?? 1, materials: s.materials ?? {} };
   } catch {
     return null;
   }
@@ -202,12 +204,52 @@ export function recruit(s: SaveState, heroId: string): SaveState {
 
 // ── 祖名傳承 ──────────────────────────────────────────
 /** 跨入新的一代:等級保留一半(至少 2)、經驗歸零、自由點數全部退回;信物與足跡保留 */
-export function inherit(s: SaveState, generation: number): SaveState {
+export function inherit(s: SaveState, generation: number, floor = 2): SaveState {
   if (s.generation >= generation) return s;
   const heroes: SaveState["heroes"] = {};
   for (const [id, h] of Object.entries(s.heroes)) {
-    const level = Math.max(2, Math.ceil(h.level / 2));
+    const level = Math.max(floor, Math.ceil(h.level / 2));
     heroes[id] = { ...h, level, xp: 0, bonus: { str: 0, agi: 0, int: 0, spi: 0, vit: 0 }, unspent: (level - 1) * POINTS_PER_LEVEL };
   }
   return { ...s, heroes, generation };
+}
+
+// ── 材料與信物升級 ────────────────────────────────────
+export function addMaterials(s: SaveState, gains: Partial<Record<MaterialId, number>>): SaveState {
+  const materials = { ...s.materials };
+  for (const [k, n] of Object.entries(gains)) materials[k as MaterialId] = (materials[k as MaterialId] ?? 0) + (n ?? 0);
+  return { ...s, materials };
+}
+
+export function upgradeCost(level: number): Partial<Record<MaterialId, number>> | null {
+  return level >= MAX_KEEPSAKE_LEVEL ? null : UPGRADE_COST[level];
+}
+
+export function canUpgrade(s: SaveState, uid: string): boolean {
+  const item = s.inventory.find((i) => i.uid === uid);
+  const cost = item && upgradeCost(item.level ?? 1);
+  return !!cost && Object.entries(cost).every(([m, n]) => (s.materials[m as MaterialId] ?? 0) >= (n ?? 0));
+}
+
+export function upgradeKeepsake(s: SaveState, uid: string): SaveState {
+  if (!canUpgrade(s, uid)) return s;
+  const item = s.inventory.find((i) => i.uid === uid)!;
+  const cost = upgradeCost(item.level ?? 1)!;
+  const materials = { ...s.materials };
+  for (const [m, n] of Object.entries(cost)) materials[m as MaterialId] = (materials[m as MaterialId] ?? 0) - (n ?? 0);
+  return { ...s, materials, inventory: s.inventory.map((i) => (i.uid === uid ? { ...i, level: (i.level ?? 1) + 1 } : i)) };
+}
+
+/** 英雄身上信物等級帶來的加成 */
+export function heroCharmBonus(s: SaveState, heroId: string): { dmg: number; guard: number; hp: number } {
+  const out = { dmg: 0, guard: 0, hp: 0 };
+  for (const [slot, uid] of Object.entries(s.equipment?.[heroId] ?? {})) {
+    const item = s.inventory.find((i) => i.uid === uid);
+    if (!item) continue;
+    const b = slotBonus(slot as SlotId, item.level ?? 1);
+    if (slot === "brow") out.dmg += b;
+    if (slot === "chest") out.guard += b;
+    if (slot === "navel") out.hp += b;
+  }
+  return out;
 }

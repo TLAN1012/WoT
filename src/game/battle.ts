@@ -14,7 +14,7 @@ import { getDifficulty } from "./difficulty";
 import { getEnemy } from "./enemies";
 import { getHero } from "./heroes";
 import { cellToHex, parseMap } from "./maps";
-import { deriveStats, heroCharms, heroSkills } from "./progress";
+import { deriveStats, heroCharmBonus, heroCharms, heroSkills } from "./progress";
 import { getSkill, lineDirection, skillArea } from "./skills";
 import { getTerrain } from "./terrain";
 import { counterMultiplier } from "./counters";
@@ -27,11 +27,11 @@ export const RAGE_ON_HURT = 10;
 export const MAX_WISPS = 5; // 同種召喚物上限
 
 // ── 建立 ──────────────────────────────────────────────
-export function heroUnit(p: HeroProgress, pos: Hex, charms: CharmEffect[] = []): Unit {
+export function heroUnit(p: HeroProgress, pos: Hex, charms: CharmEffect[] = [], bonus = { dmg: 0, guard: 0, hp: 0 }): Unit {
   const h = getHero(p.id);
   const st = deriveStats(p);
   const fam = getFamily(getClass(h.classId).family);
-  const hpMax = Math.round(st.maxHp * (charms.includes("hpUp15") ? 1.15 : 1));
+  const hpMax = Math.round(st.maxHp * (charms.includes("hpUp15") ? 1.15 : 1) * (1 + bonus.hp));
   return {
     id: h.id,
     side: "hero",
@@ -62,13 +62,21 @@ export function heroUnit(p: HeroProgress, pos: Hex, charms: CharmEffect[] = []):
     charms,
     charmUsed: [],
     ctype: fam.ctype,
+    bonusDmg: bonus.dmg,
+    bonusGuard: bonus.guard,
   };
 }
 
-export function enemyUnit(pl: Placement, difficulty: BattleState["difficulty"], side: Side = "enemy"): Unit {
+const TIER_HP = [1, 1.55, 2.3];
+const TIER_DMG = [1, 1.3, 1.65];
+
+export function enemyUnit(pl: Placement, difficulty: BattleState["difficulty"], side: Side = "enemy", tier = 1, scale = 1): Unit {
   const e = getEnemy(pl.defId);
   const d = getDifficulty(difficulty);
-  const hp = side === "enemy" ? Math.round(e.hp * d.enemyHp) : e.hp;
+  // 試煉難度:2★/3★ 的野獸與戰士更強;試煉後段的關卡再乘上 scale
+  const t = side === "enemy" ? tier - 1 : 0;
+  const k = side === "enemy" ? scale : 1;
+  const hp = side === "enemy" ? Math.round(e.hp * d.enemyHp * TIER_HP[t] * k) : e.hp;
   return {
     id: pl.id,
     side,
@@ -83,10 +91,10 @@ export function enemyUnit(pl: Placement, difficulty: BattleState["difficulty"], 
     maxRes: 0,
     res: 0,
     resRegen: 0,
-    atk: e.atk,
-    mag: e.mag,
-    heal: 0,
-    def: e.def,
+    atk: Math.round(e.atk * TIER_DMG[t] * k),
+    mag: Math.round(e.mag * TIER_DMG[t] * k),
+    heal: Math.round(e.mag * 1.5),
+    def: e.def + 3 * t,
     mdef: e.mdef,
     crit: e.boss ? 0.05 : 0.08,
     move: e.move,
@@ -102,9 +110,9 @@ export function enemyUnit(pl: Placement, difficulty: BattleState["difficulty"], 
   };
 }
 
-export function initBattle(def: BattleDef, save: SaveState, seed = Date.now() % 100000): BattleState {
+export function initBattle(def: BattleDef, save: SaveState, seed = Date.now() % 100000, tier = 1): BattleState {
   const terrain = parseMap(def.map);
-  const mk = (id: string, cell: [number, number]) => heroUnit(save.heroes[id], cellToHex(cell), heroCharms(save, id));
+  const mk = (id: string, cell: [number, number]) => heroUnit(save.heroes[id], cellToHex(cell), heroCharms(save, id), heroCharmBonus(save, id));
   // 先放關卡指定的預設站位,名額還有空就把其他同伴放進出發區的空格,剩下的在候補
   const deployed: Unit[] = [];
   for (const h of def.heroes) if (save.party.includes(h.heroId) && deployed.length < def.maxHeroes) deployed.push(mk(h.heroId, h.cell));
@@ -117,9 +125,11 @@ export function initBattle(def: BattleDef, save: SaveState, seed = Date.now() % 
     if (cell) deployed.push(mk(id, cell));
     else reserve.push(mk(id, def.deploy[0]));
   }
-  const enemies = def.enemies.map((e) => enemyUnit(e, save.difficulty));
+  const extras = [...(tier >= 2 ? (def.tierExtras?.[2] ?? []) : []), ...(tier >= 3 ? (def.tierExtras?.[3] ?? []) : [])];
+  const enemies = [...def.enemies, ...extras].map((e) => enemyUnit(e, save.difficulty, "enemy", tier, def.enemyScale ?? 1));
   return {
     battleId: def.id,
+    tier,
     phase: "deploy",
     reserve,
     deploy: def.deploy.map((c) => hexKey(cellToHex(c))),
@@ -181,6 +191,7 @@ export function moveCost(u: Unit, terrainId: string): number {
   const base = getTerrain(terrainId).moveCost;
   if (!u.isHero && u.side === "enemy" && getEnemy(u.defId).forestWalker && (terrainId === "jungle" || terrainId === "taiga")) return 1;
   if (u.charms.includes("tideWalker") && (terrainId === "beach" || terrainId === "shallows" || terrainId === "marsh")) return 1;
+  if (!u.isHero && u.side === "enemy" && getEnemy(u.defId).swimmer && (terrainId === "shallows" || terrainId === "marsh")) return 1;
   return base;
 }
 
@@ -325,6 +336,7 @@ function damageMultiplier(s: BattleState, attacker: Unit, target: Unit): number 
   }
   if (hasStatus(attacker, "might")) mult += 0.3;
   if (hasStatus(attacker, "bear")) mult += 0.3;
+  mult += attacker.bonusDmg ?? 0;
   if (attacker.isHero && getClass(getHero(attacker.defId).classId).family === "hanup" && target.hp < target.maxHp / 2) mult += 0.25;
   const cm = counterMultiplier(attacker.ctype, target.ctype);
   mult *= cm;
@@ -332,6 +344,7 @@ function damageMultiplier(s: BattleState, attacker: Unit, target: Unit): number 
   if (target.charms.includes("lastStand") && target.hp < target.maxHp * 0.25) mult *= 0.7;
   if (hasStatus(target, "mark")) mult *= 1.25;
   if (hasStatus(target, "bear")) mult *= 0.7;
+  mult *= 1 - (target.bonusGuard ?? 0);
   if (!attacker.isHero && attacker.side === "enemy" && getEnemy(attacker.defId).pack) {
     const pals = living(s, attacker.side).filter(
       (p) => p.id !== attacker.id && !p.isHero && getEnemy(p.defId).pack && hexDistance(p.pos, target.pos) === 1,
@@ -399,6 +412,7 @@ export function skillVictims(s: BattleState, u: Unit, skillId: string, target: H
   }
   if (skill.effect === "buff") {
     if (skill.id === "howl") return living(s, u.side).filter((a) => !a.isHero && getEnemy(a.defId).pack);
+    if (skill.id === "warcry") return living(s, u.side);
     return living(s).filter((o) => o.side !== u.side && hexDistance(o.pos, from) <= (skill.size ?? 1));
   }
   if (skill.shape === "chain") {
@@ -878,7 +892,7 @@ export interface BattleResult {
 
 export const VICTORY_XP = 40;
 
-export function battleResult(s: BattleState, parTurns: number): BattleResult {
+export function battleResult(s: BattleState, parTurns: number, xpScale = 1): BattleResult {
   const heroes = s.units.filter((u) => u.isHero);
   const fallen = heroes.filter((u) => u.down).map((u) => u.id);
   const victory = s.outcome === "victory";
@@ -891,10 +905,11 @@ export function battleResult(s: BattleState, parTurns: number): BattleResult {
     // 敗北仍保留一半經驗(撤退重來不會白打)
     xp[h.id] = victory ? base + VICTORY_XP : Math.floor(base / 2);
   }
+  if (xpScale !== 1) for (const k of Object.keys(xp)) xp[k] = Math.round(xp[k] * xpScale);
   return { victory, stars, turns: s.turn, fallen, xp, drops: victory ? s.drops : [] };
 }
 
 /** 建立戰鬥並直接開戰(照預設布陣;模擬與測試用) */
-export function initFight(def: BattleDef, save: SaveState, seed?: number): BattleState {
-  return battleReducer(initBattle(def, save, seed), { type: "START" });
+export function initFight(def: BattleDef, save: SaveState, seed?: number, tier = 1): BattleState {
+  return battleReducer(initBattle(def, save, seed, tier), { type: "START" });
 }

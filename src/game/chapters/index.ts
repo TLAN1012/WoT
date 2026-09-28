@@ -1,8 +1,9 @@
 import { CHAPTER_1 } from "./ch1";
 import { CHAPTER_2 } from "./ch2";
+import { INTERLUDE } from "./interlude";
 import type { BattleDef, ChapterDef } from "../types";
 
-export const CHAPTERS: ChapterDef[] = [CHAPTER_1, CHAPTER_2];
+export const CHAPTERS: ChapterDef[] = [CHAPTER_1, INTERLUDE, CHAPTER_2];
 
 export function getChapter(id: string): ChapterDef {
   return CHAPTERS.find((c) => c.id === id) ?? CHAPTERS[0];

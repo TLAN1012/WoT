@@ -43,6 +43,13 @@ export const SKILLS: SkillDef[] = [
   { id: "stone", name: "丟石子", icon: "🪨", desc: "從 1~2 格外丟石子。", cost: 0, cooldown: 0, target: "enemy", range: [1, 2], shape: "single", effect: "damage", scale: "phys", power: 0.9 },
   { id: "maul", name: "熊掌拍", icon: "🐾", desc: "重重一掌,打中前方三格。", cost: 0, cooldown: 0, target: "enemy", range: [1, 1], shape: "cleave", effect: "damage", scale: "phys", power: 1 },
   { id: "rally", name: "呼喚山豬群", icon: "📯", desc: "山豬神長嚎,兩頭山豬從林中衝出來。", cost: 0, cooldown: 3, target: "self", range: [0, 0], shape: "ring", effect: "summon", scale: "phys", power: 0, summon: "boar" },
+  // ── 敵對氏族 ──
+  { id: "jab", name: "短矛刺", icon: "🔱", desc: "從藤盾後面刺出短矛,1~2 格。", cost: 0, cooldown: 0, target: "enemy", range: [1, 2], shape: "single", effect: "damage", scale: "phys", power: 1 },
+  { id: "sling", name: "投石索", icon: "🪨", desc: "甩出石頭,1~3 格。", cost: 0, cooldown: 0, target: "enemy", range: [1, 3], shape: "single", effect: "damage", scale: "phys", power: 1 },
+  { id: "hex", name: "詛咒", icon: "🎭", desc: "面具下的咒語:傷害並讓目標被標記(受到傷害 +25%)。", cost: 0, cooldown: 2, target: "enemy", range: [1, 3], shape: "single", effect: "damage", scale: "magic", power: 0.9, statuses: [{ id: "mark", turns: 2 }] },
+  { id: "mend", name: "草藥煙", icon: "🌫️", desc: "用草藥煙治療 3 格內的一位同伴。", cost: 0, cooldown: 1, target: "ally", range: [0, 3], shape: "single", effect: "heal", scale: "heal", power: 1.2 },
+  { id: "spear", name: "長矛突刺", icon: "🗡️", desc: "長矛一刺貫穿兩格。", cost: 0, cooldown: 0, target: "enemy", range: [1, 2], shape: "line", size: 2, effect: "damage", scale: "phys", power: 1.1 },
+  { id: "warcry", name: "戰吼", icon: "📣", desc: "首領怒吼:全族傷害 +30%,持續 2 回合。", cost: 0, cooldown: 4, target: "self", range: [0, 0], shape: "ring", size: 99, effect: "buff", scale: "phys", power: 0, statuses: [{ id: "might", turns: 2 }] },
   // ── 野獸與寒祟 ──
   { id: "bite", name: "撕咬", icon: "🦷", desc: "撲上來咬。鬣狗包圍同一個目標時更兇狠。", cost: 0, cooldown: 0, target: "enemy", range: [1, 1], shape: "single", effect: "damage", scale: "phys", power: 1 },
   { id: "howl", name: "號令", icon: "🐺", desc: "首領長嚎:所有鬣狗傷害 +30%,持續 2 回合。", cost: 0, cooldown: 4, target: "self", range: [0, 0], shape: "ring", size: 99, effect: "buff", scale: "phys", power: 0, statuses: [{ id: "might", turns: 2 }] },

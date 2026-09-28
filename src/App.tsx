@@ -11,10 +11,11 @@ import { pickTrack, type Variant } from "./audio/music";
 import { battleResult, initBattle, type BattleResult } from "./game/battle";
 import { chapterUnlocked, CHAPTERS, getChapter } from "./game/chapters";
 import { getDifficulty } from "./game/difficulty";
-import { addShards, gainXp, grantKeepsake, inherit, loadSave, newSave, recruit, writeSave, clearSave } from "./game/progress";
+import { addMaterials, addShards, gainXp, grantKeepsake, inherit, loadSave, newSave, recruit, writeSave, clearSave } from "./game/progress";
 import { setArtGeneration } from "./ui/assets";
 import { getHero } from "./game/heroes";
-import type { BattleDef, BattleState, SaveState, StoryPage } from "./game/types";
+import { rollMaterials } from "./game/materials";
+import type { BattleDef, BattleState, MaterialId, SaveState, StoryPage } from "./game/types";
 import { BattleScreen } from "./ui/BattleScreen";
 import { ChapterScreen } from "./ui/ChapterScreen";
 import { MusicRoom } from "./ui/MusicRoom";
@@ -35,9 +36,10 @@ interface StoryState {
   then: () => void;
 }
 
-/** 最新開放的章節 */
-function latestChapter(s: SaveState): string {
-  return [...CHAPTERS].reverse().find((c) => chapterUnlocked(c, s.stars))?.id ?? CHAPTERS[0].id;
+/** 繼續旅程:回到上次所在的章節(舊存檔則是同一代裡最新開放的章節,不會自動跨代) */
+function resumeChapter(s: SaveState): string {
+  if (s.lastChapter) return s.lastChapter;
+  return [...CHAPTERS].reverse().find((c) => chapterUnlocked(c, s.stars) && c.generation <= s.generation)?.id ?? CHAPTERS[0].id;
 }
 
 export default function App() {
@@ -48,7 +50,14 @@ export default function App() {
   const [story, setStory] = useState<StoryState | null>(null);
   const [battleDef, setBattleDef] = useState<BattleDef | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
-  const [result, setResult] = useState<{ result: BattleResult; gains: HeroGain[]; rewards: string[]; shards: Record<string, number> } | null>(null);
+  const [result, setResult] = useState<{
+    result: BattleResult;
+    gains: HeroGain[];
+    rewards: string[];
+    shards: Record<string, number>;
+    materials: Partial<Record<MaterialId, number>>;
+    tier: number;
+  } | null>(null);
 
   useEffect(() => {
     if (save) writeSave(save);
@@ -87,8 +96,14 @@ export default function App() {
   const openChapter = useCallback(
     (s: SaveState, id: string) => {
       const ch = getChapter(id);
+      if (ch.generation > s.generation) {
+        const ok = confirm(
+          `進入「${ch.title}」會進行祖名傳承:英雄換成第 ${ch.generation} 代,等級保留一半、點數全部退回重新分配(信物與足跡保留)。\n\n這一步不能回頭。想用第一代的六個人玩「間章」刷材料的話,請先玩夠再前進。\n\n確定要前往嗎?`,
+        );
+        if (!ok) return;
+      }
       setChapterId(id);
-      let next = inherit(s, ch.generation);
+      let next: SaveState = { ...inherit(s, ch.generation, ch.inheritFloor), lastChapter: id };
       if (!next.seenIntro.includes(ch.id)) {
         next = { ...next, seenIntro: [...next.seenIntro, ch.id] };
         setSave(next);
@@ -102,11 +117,11 @@ export default function App() {
   );
 
   const startBattle = useCallback(
-    (def: BattleDef, skipIntro = false) => {
+    (def: BattleDef, skipIntro = false, tier = 1) => {
       if (!save) return;
       setBattleDef(def);
       const begin = () => {
-        setBattle(initBattle(def, save));
+        setBattle(initBattle(def, save, undefined, tier));
         setScreen("battle");
       };
       if (skipIntro) begin();
@@ -117,7 +132,10 @@ export default function App() {
 
   const finishBattle = useCallback(() => {
     if (!save || !battle || !battleDef) return;
-    const r = battleResult(battle, battleDef.parTurns);
+    const trial = !!battleDef.material;
+    const r = battleResult(battle, battleDef.parTurns, battleDef.xpScale ?? 1);
+    // 試煉關卡:星數 = 打過的最高難度
+    if (trial) r.stars = r.victory ? battle.tier : 0;
     const gains: HeroGain[] = [];
     const heroes = { ...save.heroes };
     for (const id of save.party) {
@@ -129,13 +147,16 @@ export default function App() {
     const firstWin = r.victory && !save.stars[battleDef.id];
     const stars = r.victory ? { ...save.stars, [battleDef.id]: Math.max(save.stars[battleDef.id] ?? 0, r.stars) } : save.stars;
     // 首勝獎勵信物 + 戰場掉落
-    const rewards = [...(firstWin ? [battleDef.reward] : []), ...r.drops];
+    const rewards = [...(firstWin && battleDef.reward ? [battleDef.reward] : []), ...r.drops];
     let next: SaveState = { ...save, heroes, stars };
     for (const id of rewards) next = grantKeepsake(next, id);
-    // 足跡:首勝固定給;重玩隨機撿到 1~2 個還沒加入的族人的
+    // 材料(試煉)
+    const materials = r.victory && battleDef.material ? rollMaterials(battleDef.material, battle.tier, Math.random) : {};
+    next = addMaterials(next, materials);
+    // 足跡:首勝固定給;重玩隨機撿到 1~2 個還沒加入的族人的(試煉只在 2★ 以上有機會)
     const shards: Record<string, number> = {};
-    if (r.victory) {
-      if (firstWin) Object.assign(shards, battleDef.shards.first);
+    if (r.victory && (!trial || (battle.tier >= 2 && Math.random() < 0.5))) {
+      if (firstWin && !trial) Object.assign(shards, battleDef.shards.first);
       else {
         const pool = battleDef.shards.replay.filter((id) => !next.party.includes(id));
         if (pool.length) shards[pool[Math.floor(Math.random() * pool.length)]] = 1 + Math.floor(Math.random() * 2);
@@ -144,7 +165,7 @@ export default function App() {
     for (const id of Object.keys(shards)) if (next.party.includes(id)) delete shards[id];
     next = addShards(next, shards);
     setSave(next);
-    setResult({ result: r, gains, rewards, shards });
+    setResult({ result: r, gains, rewards, shards, materials, tier: trial ? battle.tier : 0 });
     setScreen("result");
   }, [save, battle, battleDef]);
 
@@ -192,7 +213,7 @@ export default function App() {
           const s = loadSave();
           if (!s) return;
           setSave(s);
-          openChapter(s, latestChapter(s));
+          openChapter(s, resumeChapter(s));
         }}
         onNew={(d) => {
           clearSave();
@@ -233,7 +254,7 @@ export default function App() {
     );
   }
   if (screen === "result" && result && battleDef) {
-    return <ResultScreen title={battleDef.title} result={result.result} gains={result.gains} parTurns={battleDef.parTurns} rewards={result.rewards} shards={result.shards} shardTotals={save.shards} winArt={battleDef.winArt} onNext={afterResult} onRetry={() => startBattle(battleDef, true)} />;
+    return <ResultScreen title={battleDef.title} result={result.result} gains={result.gains} parTurns={battleDef.parTurns} rewards={result.rewards} shards={result.shards} shardTotals={save.shards} materials={result.materials} tier={result.tier} winArt={battleDef.winArt} onNext={afterResult} onRetry={() => startBattle(battleDef, true, battle?.tier ?? 1)} />;
   }
   return (
     <ChapterScreen
@@ -241,7 +262,7 @@ export default function App() {
       chapters={CHAPTERS.map((c) => ({ id: c.id, title: c.title, unlocked: chapterUnlocked(c, save.stars) }))}
       onSwitch={(id) => openChapter(save, id)}
       save={save}
-      onBattle={(b) => startBattle(b)}
+      onBattle={(b, tier) => startBattle(b, false, tier)}
       onParty={() => setScreen("party")}
       onPrologue={() => playStory({ pages: chapter.intro, background: "title", title: chapter.title, subtitle: chapter.era, music: "b", then: () => setScreen("chapter") })}
       onEpilogue={() => playStory({ pages: chapter.epilogue, background: "sunrise", music: "b", then: () => setScreen("chapter") })}

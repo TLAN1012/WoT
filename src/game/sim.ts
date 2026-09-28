@@ -3,8 +3,8 @@ import { planActions, planEnemy, nextHero, runAllySummons, runEnemyPhase } from 
 import { battleReducer, getUnit, initFight } from "./battle";
 import type { BattleDef, BattleState, SaveState } from "./types";
 
-export function simulate(def: BattleDef, save: SaveState, seed: number): BattleState {
-  let s = initFight(def, save, seed);
+export function simulate(def: BattleDef, save: SaveState, seed: number, tier = 1): BattleState {
+  let s = initFight(def, save, seed, tier);
   let guard = 0;
   while (s.outcome === "ongoing" && guard++ < 400) {
     if (s.side === "enemy") {
