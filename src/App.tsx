@@ -11,7 +11,8 @@ import { pickTrack, type Variant } from "./audio/music";
 import { battleResult, initBattle, type BattleResult } from "./game/battle";
 import { CHAPTERS } from "./game/chapters";
 import { getDifficulty } from "./game/difficulty";
-import { gainXp, grantKeepsake, loadSave, newSave, writeSave, clearSave } from "./game/progress";
+import { addShards, gainXp, grantKeepsake, loadSave, newSave, recruit, writeSave, clearSave } from "./game/progress";
+import { getHero } from "./game/heroes";
 import type { BattleDef, BattleState, SaveState, StoryPage } from "./game/types";
 import { BattleScreen } from "./ui/BattleScreen";
 import { ChapterScreen } from "./ui/ChapterScreen";
@@ -41,7 +42,7 @@ export default function App() {
   const [story, setStory] = useState<StoryState | null>(null);
   const [battleDef, setBattleDef] = useState<BattleDef | null>(null);
   const [battle, setBattle] = useState<BattleState | null>(null);
-  const [result, setResult] = useState<{ result: BattleResult; gains: HeroGain[]; rewards: string[] } | null>(null);
+  const [result, setResult] = useState<{ result: BattleResult; gains: HeroGain[]; rewards: string[]; shards: Record<string, number> } | null>(null);
 
   useEffect(() => {
     if (save) writeSave(save);
@@ -117,8 +118,19 @@ export default function App() {
     const rewards = [...(firstWin ? [battleDef.reward] : []), ...r.drops];
     let next: SaveState = { ...save, heroes, stars };
     for (const id of rewards) next = grantKeepsake(next, id);
+    // 足跡:首勝固定給;重玩隨機撿到 1~2 個還沒加入的族人的
+    const shards: Record<string, number> = {};
+    if (r.victory) {
+      if (firstWin) Object.assign(shards, battleDef.shards.first);
+      else {
+        const pool = battleDef.shards.replay.filter((id) => !next.party.includes(id));
+        if (pool.length) shards[pool[Math.floor(Math.random() * pool.length)]] = 1 + Math.floor(Math.random() * 2);
+      }
+    }
+    for (const id of Object.keys(shards)) if (next.party.includes(id)) delete shards[id];
+    next = addShards(next, shards);
     setSave(next);
-    setResult({ result: r, gains, rewards });
+    setResult({ result: r, gains, rewards, shards });
     setScreen("result");
   }, [save, battle, battleDef]);
 
@@ -177,7 +189,17 @@ export default function App() {
     );
   }
   if (screen === "party") {
-    return <PartyScreen save={save} onChange={setSave} onBack={() => setScreen("chapter")} />;
+    return (
+      <PartyScreen
+        save={save}
+        onChange={setSave}
+        onBack={() => setScreen("chapter")}
+        onRecruit={(id) => {
+          setSave(recruit(save, id));
+          playStory({ pages: getHero(id).recruit!.story, background: "coast", title: `${getHero(id).name}加入了!`, then: () => setScreen("party") });
+        }}
+      />
+    );
   }
   if (screen === "battle" && battle && battleDef) {
     return (
@@ -196,7 +218,7 @@ export default function App() {
     );
   }
   if (screen === "result" && result && battleDef) {
-    return <ResultScreen title={battleDef.title} result={result.result} gains={result.gains} parTurns={battleDef.parTurns} rewards={result.rewards} winArt={battleDef.winArt} onNext={afterResult} onRetry={() => startBattle(battleDef, true)} />;
+    return <ResultScreen title={battleDef.title} result={result.result} gains={result.gains} parTurns={battleDef.parTurns} rewards={result.rewards} shards={result.shards} shardTotals={save.shards} winArt={battleDef.winArt} onNext={afterResult} onRetry={() => startBattle(battleDef, true)} />;
   }
   return (
     <ChapterScreen

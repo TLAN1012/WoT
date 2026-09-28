@@ -1,10 +1,10 @@
 /** 自動對打(平衡測試用):模擬玩家與野獸都用效用 AI。 */
-import { planActions, planEnemy, nextHero, runEnemyPhase } from "./ai";
-import { battleReducer, getUnit, initBattle } from "./battle";
+import { planActions, planEnemy, nextHero, runAllySummons, runEnemyPhase } from "./ai";
+import { battleReducer, getUnit, initFight } from "./battle";
 import type { BattleDef, BattleState, SaveState } from "./types";
 
 export function simulate(def: BattleDef, save: SaveState, seed: number): BattleState {
-  let s = initBattle(def, save, seed);
+  let s = initFight(def, save, seed);
   let guard = 0;
   while (s.outcome === "ongoing" && guard++ < 400) {
     if (s.side === "enemy") {
@@ -13,7 +13,7 @@ export function simulate(def: BattleDef, save: SaveState, seed: number): BattleS
     }
     const h = nextHero(s);
     if (!h) {
-      s = battleReducer(s, { type: "END_TURN" });
+      s = battleReducer(runAllySummons(s, battleReducer), { type: "END_TURN" });
       continue;
     }
     for (const a of planActions(planEnemy(s, h))) s = battleReducer(s, a);

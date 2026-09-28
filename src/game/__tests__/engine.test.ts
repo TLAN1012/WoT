@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hexKey } from "../../engine/hex";
 import { runEnemyPhase } from "../ai";
-import { battleReducer, battleResult, getUnit, initBattle, living, previewSkill, reachable, skillTargets } from "../battle";
+import { battleReducer, battleResult, getUnit, initFight, living, previewSkill, reachable, skillTargets } from "../battle";
 import { CHAPTERS } from "../chapters";
 import { cellToHex, parseMap } from "../maps";
 import { deriveStats, gainXp, heroSkills, newHero, newSave, resetPoints, spendPoint } from "../progress";
@@ -65,7 +65,7 @@ describe("技能形狀", () => {
 
 describe("戰鬥", () => {
   it("移動受控制區限制;友軍可穿過不可停", () => {
-    let s = initBattle(B1, newSave("brave"), 1);
+    let s = initFight(B1, newSave("brave"), 1);
     const batu = getUnit(s, "batu")!;
     const r = reachable(s, batu);
     expect(r.get(hexKey(getUnit(s, "danum")!.pos))?.canStop ?? false).toBe(false);
@@ -76,7 +76,7 @@ describe("戰鬥", () => {
   });
 
   it("出手、經驗、擊倒", () => {
-    let s = initBattle(B1, newSave("brave"), 1);
+    let s = initFight(B1, newSave("brave"), 1);
     s = place(s, "h1", [5, 4]);
     s = { ...s, units: s.units.map((u) => (u.id === "h1" ? { ...u, hp: 5 } : u)) };
     const target = getUnit(s, "h1")!.pos;
@@ -92,7 +92,7 @@ describe("戰鬥", () => {
   });
 
   it("怒氣不足不能放旋風斧;靈力每回合回復", () => {
-    let s = initBattle(B1, newSave("brave"), 1);
+    let s = initFight(B1, newSave("brave"), 1);
     s = { ...s, units: s.units.map((u) => (u.id === "batu" ? { ...u, res: 0 } : u.id === "bitu" ? { ...u, res: 0 } : u)) };
     expect(battleReducer(s, { type: "SKILL", unitId: "batu", skillId: "whirl", target: getUnit(s, "batu")!.pos })).toBe(s);
     s = battleReducer(s, { type: "END_TURN" });
@@ -102,7 +102,7 @@ describe("戰鬥", () => {
   });
 
   it("暈眩讓英雄下一回合不能動", () => {
-    let s = initBattle(B1, newSave("brave"), 1);
+    let s = initFight(B1, newSave("brave"), 1);
     s = battleReducer(s, { type: "END_TURN" });
     // 敵方階段中被踐踏暈眩
     s = { ...s, units: s.units.map((u): Unit => (u.id === "bitu" ? { ...u, statuses: [{ id: "stun", turns: 1 }] } : u)) };
@@ -114,7 +114,7 @@ describe("戰鬥", () => {
   });
 
   it("圖騰會治療相鄰同伴並在 3 回合後消散", () => {
-    let s = initBattle(B1, newSave("brave"), 1);
+    let s = initFight(B1, newSave("brave"), 1);
     s = { ...s, units: s.units.map((u) => (u.id === "danum" ? { ...u, skills: [...u.skills, "totem"] } : u.id === "batu" ? { ...u, hp: 20 } : u)) };
     const spot = cellToHex([3, 4]);
     s = battleReducer(s, { type: "SKILL", unitId: "danum", skillId: "totem", target: spot });
@@ -127,7 +127,7 @@ describe("戰鬥", () => {
   });
 
   it("全滅敵人 = 勝利,結算給經驗", () => {
-    let s = initBattle(B1, newSave("brave"), 1);
+    let s = initFight(B1, newSave("brave"), 1);
     s = { ...s, waves: [], units: s.units.map((u) => (u.side === "enemy" && u.id !== "h1" ? { ...u, down: true } : u.id === "h1" ? { ...u, hp: 1, pos: cellToHex([5, 4]) } : u)) };
     s = battleReducer(s, { type: "SKILL", unitId: "batu", skillId: "axe", target: cellToHex([5, 4]) });
     expect(s.outcome).toBe("victory");

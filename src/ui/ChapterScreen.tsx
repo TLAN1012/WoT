@@ -1,5 +1,7 @@
 /** 章節地圖:鹿皮古地圖上的關卡節點 */
 import { getDifficulty } from "../game/difficulty";
+import { HEROES } from "../game/heroes";
+import { canRecruit } from "../game/progress";
 import type { BattleDef, ChapterDef, SaveState } from "../game/types";
 import { storyArt } from "./assets";
 import { MuteButton } from "./MuteButton";
@@ -18,6 +20,7 @@ export function ChapterScreen(props: {
   const firstOpen = chapter.battles.findIndex((b) => !save.stars[b.id]);
   const cleared = firstOpen === -1;
   const unspent = save.party.reduce((n, id) => n + save.heroes[id].unspent, 0);
+  const recruitable = HEROES.filter((h) => canRecruit(save, h.id)).length;
 
   return (
     <div className="screen">
@@ -68,6 +71,7 @@ export function ChapterScreen(props: {
             )}
             <button className="btn btn-moss" onClick={props.onParty}>
               同伴{unspent > 0 ? `(${unspent} 點可分配)` : ""}
+              {recruitable > 0 && <span className="level-up" style={{ color: "#fff" }}>・有人可以招募!</span>}
             </button>
             <button className="btn btn-sm" onClick={props.onPrologue}>
               序章

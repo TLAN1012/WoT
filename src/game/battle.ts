@@ -17,10 +17,11 @@ import { cellToHex, parseMap } from "./maps";
 import { deriveStats, heroCharms, heroSkills } from "./progress";
 import { getSkill, lineDirection, skillArea } from "./skills";
 import { getTerrain } from "./terrain";
+import { counterMultiplier } from "./counters";
 import { DROPS, getKeepsake } from "./keepsakes";
 import type { BattleDef, BattleState, CharmEffect, HeroProgress, LogEntry, Placement, SaveState, Side, SkillDef, Status, StatusId, Unit } from "./types";
 
-const DEBUFFS: StatusId[] = ["stun", "slow"];
+const DEBUFFS: StatusId[] = ["stun", "slow", "root", "mark"];
 export const RAGE_ON_HIT = 15;
 export const RAGE_ON_HURT = 10;
 export const MAX_WISPS = 5;
@@ -60,6 +61,7 @@ export function heroUnit(p: HeroProgress, pos: Hex, charms: CharmEffect[] = []):
     xpValue: 0,
     charms,
     charmUsed: [],
+    ctype: fam.ctype,
   };
 }
 
@@ -96,32 +98,46 @@ export function enemyUnit(pl: Placement, difficulty: BattleState["difficulty"], 
     xpValue: e.xp,
     charms: [],
     charmUsed: [],
+    ctype: e.ctype,
   };
 }
 
 export function initBattle(def: BattleDef, save: SaveState, seed = Date.now() % 100000): BattleState {
   const terrain = parseMap(def.map);
-  const heroes = def.heroes
-    .filter((h) => save.party.includes(h.heroId))
-    .map((h) => heroUnit(save.heroes[h.heroId], cellToHex(h.cell), heroCharms(save, h.heroId)));
+  const mk = (id: string, cell: [number, number]) => heroUnit(save.heroes[id], cellToHex(cell), heroCharms(save, id));
+  // 先放關卡指定的預設站位,名額還有空就把其他同伴放進出發區的空格,剩下的在候補
+  const deployed: Unit[] = [];
+  for (const h of def.heroes) if (save.party.includes(h.heroId) && deployed.length < def.maxHeroes) deployed.push(mk(h.heroId, h.cell));
+  const used = new Set(deployed.map((u) => hexKey(u.pos)));
+  const freeCells = def.deploy.filter((c) => !used.has(hexKey(cellToHex(c))));
+  const reserve: Unit[] = [];
+  for (const id of save.party) {
+    if (deployed.some((u) => u.id === id)) continue;
+    const cell = deployed.length < def.maxHeroes ? freeCells.shift() : undefined;
+    if (cell) deployed.push(mk(id, cell));
+    else reserve.push(mk(id, def.deploy[0]));
+  }
   const enemies = def.enemies.map((e) => enemyUnit(e, save.difficulty));
-  const state: BattleState = {
+  return {
     battleId: def.id,
+    phase: "deploy",
+    reserve,
+    deploy: def.deploy.map((c) => hexKey(cellToHex(c))),
+    maxHeroes: def.maxHeroes,
     turn: 1,
     side: "hero",
-    units: [...heroes, ...enemies],
+    units: [...deployed, ...enemies],
     terrain,
     objective: def.objective,
     waves: def.waves ?? [],
-    log: [{ turn: 1, kind: "info", text: "第 1 回合・我方行動" }],
+    log: [{ turn: 1, kind: "info", text: "布陣:把英雄放到出發區,準備好就開戰" }],
     outcome: "ongoing",
     seed,
     difficulty: save.difficulty,
-    xp: Object.fromEntries(heroes.map((h) => [h.id, 0])),
+    xp: Object.fromEntries(save.party.map((id) => [id, 0])),
     drops: [],
     nextId: 1,
   };
-  return state;
 }
 
 // ── 查詢 ──────────────────────────────────────────────
@@ -172,7 +188,7 @@ export function reachable(s: BattleState, u: Unit): Map<string, ReachInfo> {
   const out = new Map<string, ReachInfo>();
   const start = hexKey(u.pos);
   out.set(start, { pos: u.pos, cost: 0, from: null, canStop: true });
-  if (u.moved || u.acted || hasStatus(u, "stun")) return out;
+  if (u.moved || u.acted || hasStatus(u, "stun") || hasStatus(u, "root")) return out;
   const budget = moveAllowance(u);
   const zoc = new Set<string>();
   for (const f of living(s).filter((o) => o.side !== u.side)) for (const n of hexNeighbors(f.pos)) zoc.add(hexKey(n));
@@ -298,6 +314,11 @@ function damageMultiplier(s: BattleState, attacker: Unit, target: Unit): number 
     mult += 0.4 * (1 - attacker.hp / attacker.maxHp);
   }
   if (hasStatus(attacker, "might")) mult += 0.3;
+  if (hasStatus(attacker, "bear")) mult += 0.3;
+  if (attacker.isHero && getClass(getHero(attacker.defId).classId).family === "hanup" && target.hp < target.maxHp / 2) mult += 0.25;
+  mult *= counterMultiplier(attacker.ctype, target.ctype);
+  if (hasStatus(target, "mark")) mult *= 1.25;
+  if (hasStatus(target, "bear")) mult *= 0.7;
   if (!attacker.isHero && attacker.side === "enemy" && getEnemy(attacker.defId).pack) {
     const pals = living(s, attacker.side).filter(
       (p) => p.id !== attacker.id && !p.isHero && getEnemy(p.defId).pack && hexDistance(p.pos, target.pos) === 1,
@@ -397,6 +418,10 @@ function roll(s: BattleState, salt: number): number {
 
 // ── 動作 ──────────────────────────────────────────────
 export type BattleAction =
+  | { type: "DEPLOY_MOVE"; unitId: string; to: Hex }
+  | { type: "DEPLOY_IN"; heroId: string; replace?: string }
+  | { type: "DEPLOY_OUT"; unitId: string }
+  | { type: "START" }
   | { type: "MOVE"; unitId: string; to: Hex }
   | { type: "SKILL"; unitId: string; skillId: string; target: Hex }
   | { type: "WAIT"; unitId: string }
@@ -510,6 +535,9 @@ function executeSkill(s: BattleState, u: Unit, skill: SkillDef, target: Hex): Ba
       const id = `totem-${s.nextId}`;
       const t = { ...enemyUnit({ id, defId: "totem", cell: [0, 0] }, s.difficulty, "hero"), pos: target, lifetime: 3, acted: true, moved: true };
       s = { ...s, nextId: s.nextId + 1, units: [...s.units, t] };
+    } else if (skill.summon === "spirit-deer") {
+      const d = { ...enemyUnit({ id: `deer-${s.nextId}`, defId: "spirit-deer", cell: [0, 0] }, s.difficulty, "hero"), pos: target, lifetime: 3, acted: true, moved: true };
+      s = { ...s, nextId: s.nextId + 1, units: [...s.units, d] };
     } else if (skill.summon === "wisp") {
       const wisps = living(s, u.side).filter((w) => w.defId === "wisp").length;
       const n = Math.min(2, MAX_WISPS - wisps);
@@ -526,11 +554,17 @@ function executeSkill(s: BattleState, u: Unit, skill: SkillDef, target: Hex): Ba
 
   const victims = skillVictims(s, caster, skill.id, target, from);
 
-  if (skill.effect === "heal") {
+  if (skill.effect === "heal" || skill.effect === "cleanse") {
     for (const v of victims) {
       const amount = Math.min(v.maxHp - v.hp, computeHeal(caster, skill));
-      s = mapUnit(s, v.id, (x) => ({ ...x, hp: x.hp + amount }));
-      s = log(s, { kind: "heal", text: `${caster.name} 治療 ${v.name} +${amount}`, at: v.pos, amount });
+      s = mapUnit(s, v.id, (x) => ({
+        ...x,
+        hp: x.hp + amount,
+        statuses: skill.effect === "cleanse" ? x.statuses.filter((st) => !DEBUFFS.includes(st.id)) : x.statuses,
+      }));
+      s = log(s, { kind: "heal", text: `${caster.name} ${skill.effect === "cleanse" ? "安撫" : "治療"} ${v.name} +${amount}`, at: v.pos, amount });
+      // 再生:每回合回復施放者治療力的一半
+      for (const st of skill.statuses ?? []) s = mapUnit(s, v.id, (x) => addStatus(x, { ...st, value: st.value ?? Math.round(caster.heal * 0.5) }));
     }
     return addXp(s, u.id, 8);
   }
@@ -544,6 +578,7 @@ function executeSkill(s: BattleState, u: Unit, skill: SkillDef, target: Hex): Ba
   }
 
   // 傷害
+  const logStart = s.log.length;
   let dealt = false;
   victims.forEach((v, i) => {
     const cur = getUnit(s, v.id);
@@ -583,6 +618,16 @@ function executeSkill(s: BattleState, u: Unit, skill: SkillDef, target: Hex): Ba
       }
     }
   });
+  // 靈縛:一半傷害轉成施放者生命
+  if (skill.effect === "drain") {
+    const dealtNow = s.log.slice(logStart).filter((e) => e.kind === "hit").reduce((n, e) => n + (e.amount ?? 0), 0);
+    const me = getUnit(s, u.id)!;
+    const gain = Math.min(me.maxHp - me.hp, Math.round(dealtNow / 2));
+    if (gain > 0) {
+      s = mapUnit(s, u.id, (x) => ({ ...x, hp: x.hp + gain }));
+      s = log(s, { kind: "heal", text: `${me.name} 吸取生命 +${gain}`, at: me.pos, amount: gain });
+    }
+  }
   if (dealt && u.isHero) {
     s = addXp(s, u.id, 8);
     s = mapUnit(s, u.id, (x) => (x.resource === "rage" ? { ...x, res: Math.min(x.maxRes, x.res + RAGE_ON_HIT) } : x));
@@ -590,8 +635,49 @@ function executeSkill(s: BattleState, u: Unit, skill: SkillDef, target: Hex): Ba
   return s;
 }
 
+function deployReducer(s: BattleState, a: BattleAction): BattleState {
+  const heroesOn = s.units.filter((u) => u.isHero);
+  switch (a.type) {
+    case "DEPLOY_MOVE": {
+      const u = heroesOn.find((x) => x.id === a.unitId);
+      if (!u || !s.deploy.includes(hexKey(a.to))) return s;
+      const other = heroesOn.find((x) => hexEq(x.pos, a.to));
+      // 目標格有人就互換位置
+      return { ...s, units: s.units.map((x) => (x.id === u.id ? { ...x, pos: a.to } : other && x.id === other.id ? { ...x, pos: u.pos } : x)) };
+    }
+    case "DEPLOY_IN": {
+      const r = s.reserve.find((x) => x.id === a.heroId);
+      if (!r) return s;
+      if (a.replace) {
+        const out = heroesOn.find((x) => x.id === a.replace);
+        if (!out) return s;
+        return {
+          ...s,
+          units: s.units.map((x) => (x.id === out.id ? { ...r, pos: out.pos } : x)),
+          reserve: [...s.reserve.filter((x) => x.id !== r.id), out],
+        };
+      }
+      if (heroesOn.length >= s.maxHeroes) return s;
+      const free = s.deploy.find((k) => !heroesOn.some((x) => hexKey(x.pos) === k));
+      if (!free) return s;
+      const [q, rr] = free.split(",").map(Number);
+      return { ...s, units: [...s.units, { ...r, pos: { q, r: rr } }], reserve: s.reserve.filter((x) => x.id !== r.id) };
+    }
+    case "DEPLOY_OUT": {
+      const u = heroesOn.find((x) => x.id === a.unitId);
+      if (!u || heroesOn.length <= 1) return s;
+      return { ...s, units: s.units.filter((x) => x.id !== u.id), reserve: [...s.reserve, u] };
+    }
+    case "START":
+      return { ...s, phase: "fight", log: [...s.log, { turn: 1, kind: "info", text: "第 1 回合・我方行動" }] };
+    default:
+      return s;
+  }
+}
+
 export function battleReducer(s: BattleState, a: BattleAction): BattleState {
   if (s.outcome !== "ongoing") return s;
+  if (s.phase === "deploy") return deployReducer(s, a);
   switch (a.type) {
     case "MOVE": {
       const u = getUnit(s, a.unitId);
@@ -617,6 +703,8 @@ export function battleReducer(s: BattleState, a: BattleAction): BattleState {
     }
     case "END_TURN":
       return endSide(s);
+    default:
+      return s;
   }
 }
 
@@ -671,6 +759,7 @@ function beginSide(s: BattleState): BattleState {
     const regen = u.statuses.find((st) => st.id === "regen");
     if (regen) healed += regen.value ?? 0;
     if (u.charms.includes("regen5")) healed += Math.round(u.maxHp * 0.05);
+    if (u.isHero && getClass(getHero(u.defId).classId).family === "vukid" && t.id === "taiga") healed += Math.round(u.maxHp * 0.08);
     // 圖騰光環
     for (const tot of living(out, side).filter((x) => x.defId === "totem" && hexDistance(x.pos, u.pos) === 1)) {
       healed += getEnemy(tot.defId).aura?.heal ?? 0;
@@ -747,10 +836,17 @@ export function battleResult(s: BattleState, parTurns: number): BattleResult {
   const victory = s.outcome === "victory";
   const stars = victory ? 1 + (fallen.length === 0 ? 1 : 0) + (s.turn <= parTurns ? 1 : 0) : 0;
   const xp: Record<string, number> = {};
+  // 候補的同伴也跟著學到一點
+  for (const r of s.reserve) xp[r.id] = victory ? Math.floor(VICTORY_XP / 2) : 0;
   for (const h of heroes) {
     const base = s.xp[h.id] ?? 0;
     // 敗北仍保留一半經驗(撤退重來不會白打)
     xp[h.id] = victory ? base + VICTORY_XP : Math.floor(base / 2);
   }
   return { victory, stars, turns: s.turn, fallen, xp, drops: victory ? s.drops : [] };
+}
+
+/** 建立戰鬥並直接開戰(照預設布陣;模擬與測試用) */
+export function initFight(def: BattleDef, save: SaveState, seed?: number): BattleState {
+  return battleReducer(initBattle(def, save, seed), { type: "START" });
 }

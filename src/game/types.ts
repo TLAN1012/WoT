@@ -26,6 +26,7 @@ export interface FamilyDef {
   /** 語源說明 */
   etymology: string;
   resource: ResourceId;
+  ctype: CombatType;
   color: string;
   desc: string;
   /** 被動特性 */
@@ -51,8 +52,11 @@ export interface ClassDef {
 // ── 技能 ──────────────────────────────────────────────
 export type SkillShape = "single" | "cleave" | "ring" | "line" | "blast" | "chain" | "dash";
 export type SkillTarget = "enemy" | "ally" | "self" | "empty";
-export type SkillEffect = "damage" | "heal" | "summon" | "buff";
-export type StatusId = "stun" | "slow" | "might" | "guard" | "taunt" | "regen";
+export type SkillEffect = "damage" | "heal" | "summon" | "buff" | "drain" | "cleanse";
+export type StatusId = "stun" | "slow" | "might" | "guard" | "taunt" | "regen" | "mark" | "root" | "bear";
+
+/** 戰型:斧 → 獸 → 弓 → 靈 → 巨 → 斧(每一型剋下一型) */
+export type CombatType = "axe" | "beast" | "bow" | "spirit" | "giant";
 
 export interface StatusApply {
   id: StatusId;
@@ -117,12 +121,15 @@ export interface HeroDef {
   /** 立繪臉朝向:朝右的擺在左邊、朝左的擺在右邊 */
   facing: "left" | "right";
   bio: string;
+  /** 需要招募的英雄:足跡(碎片)名稱與加入時的劇情 */
+  recruit?: { shard: string; need: number; story: StoryPage[] };
 }
 
 export interface EnemyDef {
   id: string;
   name: string;
   desc: string;
+  ctype?: CombatType;
   hp: number;
   atk: number;
   mag: number;
@@ -196,6 +203,7 @@ export interface Unit {
   xpValue: number;
   /** 倒下(英雄)/淨化(神獸) */
   down?: boolean;
+  ctype?: CombatType;
   /** 配戴信物的效果;每場一次的用過會記在 charmUsed */
   charms: CharmEffect[];
   charmUsed: CharmEffect[];
@@ -268,7 +276,14 @@ export interface BattleDef {
   /** 三星的回合數門檻 */
   parTurns: number;
   map: string[];
+  /** 預設站位(布陣時可以改) */
   heroes: Array<{ heroId: string; cell: Cell }>;
+  /** 出發區:布陣時英雄可以放的格子 */
+  deploy: Cell[];
+  /** 上陣名額 */
+  maxHeroes: number;
+  /** 足跡:第一次勝利必得的數量;重玩時隨機掉落的英雄 */
+  shards: { first: Record<string, number>; replay: string[] };
   enemies: Placement[];
   waves?: Wave[];
   intro: StoryPage[];
@@ -311,6 +326,12 @@ export interface LogEntry {
 
 export interface BattleState {
   battleId: string;
+  /** 布陣中 / 戰鬥中 */
+  phase: "deploy" | "fight";
+  /** 沒上陣的英雄(布陣時可以換上) */
+  reserve: Unit[];
+  deploy: string[];
+  maxHeroes: number;
   turn: number;
   side: Side;
   units: Unit[];
@@ -359,6 +380,8 @@ export interface SaveState {
   /** 關卡 id → 最佳星數 */
   stars: Record<string, number>;
   inventory: KeepsakeItem[];
+  /** 英雄 id → 撿到的足跡數 */
+  shards: Record<string, number>;
   /** 英雄 → 位置 → 信物 uid */
   equipment: Record<string, Partial<Record<SlotId, string>>>;
   nextUid: number;

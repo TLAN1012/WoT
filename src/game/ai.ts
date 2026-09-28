@@ -200,3 +200,15 @@ export function runEnemyPhase(s: BattleState, reduce: (s: BattleState, a: Battle
   return s;
 }
 
+
+/** 我方的召喚獸(靈鹿)在我方回合結束前自己行動 */
+export function runAllySummons(s: BattleState, reduce: (s: BattleState, a: BattleAction) => BattleState): BattleState {
+  for (const u of living(s, "hero").filter((x) => !x.isHero && x.skills.length && !getEnemy(x.defId).immobile)) {
+    const fresh = getUnit(s, u.id);
+    if (!fresh || fresh.down) continue;
+    // 召喚當回合標記為已行動,這裡重新讓牠動
+    s = { ...s, units: s.units.map((x) => (x.id === u.id ? { ...x, moved: false, acted: false } : x)) };
+    for (const a of planActions(planEnemy(s, getUnit(s, u.id)!))) s = reduce(s, a);
+  }
+  return s;
+}

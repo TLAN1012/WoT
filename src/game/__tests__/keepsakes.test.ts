@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { battleReducer, battleResult, getUnit, initBattle } from "../battle";
+import { battleReducer, battleResult, getUnit, initFight } from "../battle";
 import { CHAPTERS } from "../chapters";
 import { KEEPSAKES } from "../keepsakes";
 import { cellToHex } from "../maps";
@@ -35,14 +35,14 @@ describe("信物", () => {
   });
 
   it("額・鬣狗之首:第一擊必定暴擊,只一次", () => {
-    let s = near(withCharm(initBattle(B1, newSave("brave"), 1), "batu", "sureCrit"));
+    let s = near(withCharm(initFight(B1, newSave("brave"), 1), "batu", "sureCrit"));
     s = battleReducer(s, { type: "SKILL", unitId: "batu", skillId: "axe", target: cellToHex([5, 4]) });
     expect(s.log.some((e) => e.kind === "hit" && e.crit)).toBe(true);
     expect(getUnit(s, "batu")!.charmUsed).toContain("sureCrit");
   });
 
   it("臍・鬣狗之首:倒下時以 5% 生命站起來", () => {
-    let s = near(withCharm(initBattle(B1, newSave("brave"), 1), "bitu", "reviveOnce"));
+    let s = near(withCharm(initFight(B1, newSave("brave"), 1), "bitu", "reviveOnce"));
     s = { ...s, units: s.units.map((u) => (u.id === "bitu" ? { ...u, hp: 1, pos: cellToHex([4, 4]) } : u.id === "batu" ? { ...u, pos: cellToHex([1, 1]) } : u)) };
     s = { ...s, side: "enemy" };
     s = battleReducer(s, { type: "SKILL", unitId: "h1", skillId: "bite", target: cellToHex([4, 4]) });
@@ -52,14 +52,14 @@ describe("信物", () => {
   });
 
   it("額・六角石片:第一次施放不耗資源", () => {
-    let s = near(withCharm(initBattle(B1, newSave("brave"), 1), "batu", "freeCastOnce"));
+    let s = near(withCharm(initFight(B1, newSave("brave"), 1), "batu", "freeCastOnce"));
     s = { ...s, units: s.units.map((u) => (u.id === "batu" ? { ...u, res: 40 } : u)) };
     s = battleReducer(s, { type: "SKILL", unitId: "batu", skillId: "whirl", target: getUnit(s, "batu")!.pos });
     expect(getUnit(s, "batu")!.res).toBeGreaterThanOrEqual(40);
   });
 
   it("胸・古象神的祝福:不會被暈眩", () => {
-    let s = withCharm(initBattle(B1, newSave("brave"), 1), "batu", "noCC");
+    let s = withCharm(initFight(B1, newSave("brave"), 1), "batu", "noCC");
     s = { ...s, units: s.units.map((u) => (u.id === "h1" ? { ...u, skills: ["stomp"], pos: cellToHex([5, 4]) } : u)), side: "enemy" };
     s = battleReducer(s, { type: "SKILL", unitId: "h1", skillId: "stomp", target: cellToHex([5, 4]) });
     expect(getUnit(s, "batu")!.statuses.some((x) => x.id === "stun")).toBe(false);
@@ -68,8 +68,8 @@ describe("信物", () => {
   it("配戴的效果會帶進戰鬥;掉落勝利才帶走", () => {
     let save = grantKeepsake(newSave("brave"), "elephant-blessing");
     save = equip(save, "batu", "navel", save.inventory[0].uid);
-    const s = initBattle(B1, save, 1);
-    const plain = initBattle(B1, newSave("brave"), 1);
+    const s = initFight(B1, save, 1);
+    const plain = initFight(B1, newSave("brave"), 1);
     expect(getUnit(s, "batu")!.maxHp).toBeGreaterThan(getUnit(plain, "batu")!.maxHp);
     const lost = battleResult({ ...s, drops: ["tiger-claw"], outcome: "defeat" }, 7);
     expect(lost.drops).toEqual([]);

@@ -22,6 +22,22 @@ export const SKILLS: SkillDef[] = [
   { id: "bolt", name: "落雷", icon: "⚡", desc: "召來一道閃電(Rikat),重擊 1~4 格內的單一敵人。", cost: 8, cooldown: 0, target: "enemy", range: [1, 4], shape: "single", effect: "damage", scale: "magic", power: 1.45 },
   { id: "frostline", name: "寒星貫", icon: "❄️", desc: "射出一道寒星,沿直線貫穿 3 格,命中者行動遲緩。只能朝六個正方向施放。", cost: 8, cooldown: 1, target: "enemy", range: [1, 3], shape: "line", size: 3, effect: "damage", scale: "magic", power: 1.1, statuses: [{ id: "slow", turns: 1 }] },
   { id: "meteor", name: "流星雨", icon: "☄️", desc: "星星墜落在 2~4 格外,打中目標格與周圍一圈。", cost: 12, cooldown: 3, target: "enemy", range: [2, 4], shape: "blast", size: 1, effect: "damage", scale: "magic", power: 1.2 },
+  // ── Hanup 瑪塔 ──
+  { id: "arrow", name: "射擊", icon: "🏹", desc: "朝 1~4 格內的敵人射一箭。", cost: 0, cooldown: 0, target: "enemy", range: [1, 4], shape: "single", effect: "damage", scale: "phys", power: 1 },
+  { id: "pierce", name: "穿雲箭", icon: "🎯", desc: "一箭沿直線貫穿 4 格。只能朝六個正方向。", cost: 30, cooldown: 1, target: "enemy", range: [1, 4], shape: "line", size: 4, effect: "damage", scale: "phys", power: 1 },
+  { id: "mark", name: "獵人標記", icon: "🔻", desc: "在 5 格內的獵物身上留下記號:2 回合內所有人打牠傷害 +25%。", cost: 20, cooldown: 2, target: "enemy", range: [1, 5], shape: "single", effect: "damage", scale: "phys", power: 0.5, statuses: [{ id: "mark", turns: 2 }] },
+  { id: "pin", name: "釘足箭", icon: "📌", desc: "射穿腳掌:目標下一回合不能移動。", cost: 25, cooldown: 2, target: "enemy", range: [1, 4], shape: "single", effect: "damage", scale: "phys", power: 0.9, statuses: [{ id: "root", turns: 1 }] },
+  // ── Vukid 卡西 ──
+  { id: "vine", name: "藤鞭", icon: "🌿", desc: "甩出藤蔓抽打 1~2 格內的敵人。", cost: 0, cooldown: 0, target: "enemy", range: [1, 2], shape: "single", effect: "damage", scale: "magic", power: 0.85 },
+  { id: "entangle", name: "藤縛", icon: "🪢", desc: "藤蔓從地底竄出纏住 3 格內的敵人,2 回合不能移動。", cost: 8, cooldown: 2, target: "enemy", range: [1, 3], shape: "single", effect: "damage", scale: "magic", power: 0.6, statuses: [{ id: "root", turns: 2 }] },
+  { id: "bearform", name: "化熊", icon: "🐻", desc: "化身為熊 3 回合:造成傷害 +30%、承受傷害 −30%。", cost: 10, cooldown: 4, target: "self", range: [0, 0], shape: "single", effect: "buff", scale: "phys", power: 0, selfStatuses: [{ id: "bear", turns: 3 }] },
+  { id: "grove", name: "林癒", icon: "🌳", desc: "讓草木的氣息包圍 3 格內的一位同伴:立刻回復,之後 3 回合持續再生。", cost: 9, cooldown: 1, target: "ally", range: [0, 3], shape: "single", effect: "heal", scale: "heal", power: 0.8, statuses: [{ id: "regen", turns: 3 }] },
+  // ── Hanitu 布蘭 ──
+  { id: "touch", name: "靈觸", icon: "🌙", desc: "以月光般的靈力觸碰 1~2 格內的敵人。", cost: 0, cooldown: 0, target: "enemy", range: [1, 2], shape: "single", effect: "damage", scale: "magic", power: 0.85 },
+  { id: "spiritdeer", name: "靈鹿", icon: "🦌", desc: "請山林的靈鹿現身在 1~2 格內的空地,助戰 3 回合(回合結束時自己行動)。", cost: 12, cooldown: 4, target: "empty", range: [1, 2], shape: "single", effect: "summon", scale: "magic", power: 0, summon: "spirit-deer" },
+  { id: "requiem", name: "安魂", icon: "🕊️", desc: "安撫 3 格內一位同伴:解除暈眩、遲緩、定身與標記,並回復生命。", cost: 8, cooldown: 1, target: "ally", range: [0, 3], shape: "single", effect: "cleanse", scale: "heal", power: 1 },
+  { id: "soulbind", name: "靈縛", icon: "🔗", desc: "抽取 3 格內敵人的生命之氣,把一半的傷害轉成自己的生命。", cost: 10, cooldown: 2, target: "enemy", range: [1, 3], shape: "single", effect: "drain", scale: "magic", power: 1.2 },
+  { id: "gore", name: "鹿角頂", icon: "🦌", desc: "用發光的鹿角頂撞相鄰的敵人。", cost: 0, cooldown: 0, target: "enemy", range: [1, 1], shape: "single", effect: "damage", scale: "phys", power: 1.1 },
   // ── 野獸與寒祟 ──
   { id: "bite", name: "撕咬", icon: "🦷", desc: "撲上來咬。鬣狗包圍同一個目標時更兇狠。", cost: 0, cooldown: 0, target: "enemy", range: [1, 1], shape: "single", effect: "damage", scale: "phys", power: 1 },
   { id: "howl", name: "號令", icon: "🐺", desc: "首領長嚎:所有鬣狗傷害 +30%,持續 2 回合。", cost: 0, cooldown: 4, target: "self", range: [0, 0], shape: "ring", size: 99, effect: "buff", scale: "phys", power: 0, statuses: [{ id: "might", turns: 2 }] },

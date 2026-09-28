@@ -10,7 +10,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { audio } from "../audio/audio";
 import { hexCorners, hexEq, hexKey, hexToPixel, parseHexKey, type Hex } from "../engine/hex";
-import { nextEnemy, planActions, planEnemy } from "../game/ai";
+import { nextEnemy, planActions, planEnemy, runAllySummons } from "../game/ai";
+import { counterLabel, CTYPE_INFO } from "../game/counters";
+import { CounterHelp, DeployBar } from "./DeployBar";
 import {
   battleReducer,
   getUnit,
@@ -37,8 +39,8 @@ import { MuteButton } from "./MuteButton";
 
 const HEX = 40;
 const AI_STEP_MS = 520;
-const STATUS_ICON: Record<StatusId, string> = { stun: "💫", slow: "🐌", might: "🔥", guard: "🛡️", taunt: "📣", regen: "🌱" };
-const STATUS_NAME: Record<StatusId, string> = { stun: "暈眩", slow: "遲緩", might: "強化", guard: "守勢", taunt: "被挑釁", regen: "再生" };
+const STATUS_ICON: Record<StatusId, string> = { stun: "💫", slow: "🐌", might: "🔥", guard: "🛡️", taunt: "📣", regen: "🌱", mark: "🔻", root: "🪢", bear: "🐻" };
+const STATUS_NAME: Record<StatusId, string> = { stun: "暈眩", slow: "遲緩", might: "強化", guard: "守勢", taunt: "被挑釁", regen: "再生", mark: "被標記", root: "定身", bear: "熊形" };
 
 interface View {
   x: number;
@@ -64,7 +66,7 @@ export interface BattleScreenProps {
 }
 
 function spriteId(u: Unit): string {
-  return u.defId;
+  return u.statuses.some((x) => x.id === "bear") ? "kasiw-bear" : u.defId;
 }
 
 function spriteScale(u: Unit): number {
@@ -89,7 +91,9 @@ export function BattleScreen(props: BattleScreenProps) {
   const [history, setHistory] = useState<BattleState[]>([]);
   const lastPointer = useRef<"mouse" | "touch" | "pen">("mouse");
 
-  const isPlayerTurn = battle.side === "hero" && battle.outcome === "ongoing";
+  const deploying = battle.phase === "deploy";
+  const isPlayerTurn = battle.side === "hero" && battle.outcome === "ongoing" && !deploying;
+  const [helpOpen, setHelpOpen] = useState(false);
   const selected = selectedId ? battle.units.find((u) => u.id === selectedId && !u.down && u.isHero) : undefined;
   const activeSkill = selected && skillId && selected.skills.includes(skillId) ? getSkill(skillId) : null;
 
@@ -103,6 +107,12 @@ export function BattleScreen(props: BattleScreenProps) {
     },
     [battle, onChange, allowUndo],
   );
+
+  /** 結束回合:先讓靈鹿等召喚獸自己行動 */
+  const endTurn = useCallback(() => {
+    setHistory([]);
+    onChange(battleReducer(runAllySummons(battle, battleReducer), { type: "END_TURN" }));
+  }, [battle, onChange]);
 
   /** 出手後自動換到下一位還沒行動的英雄 */
   function advance(next: BattleState) {
@@ -180,9 +190,9 @@ export function BattleScreen(props: BattleScreenProps) {
   // 我方全員行動完 → 自動結束回合
   useEffect(() => {
     if (!isPlayerTurn || !sideDone(battle)) return;
-    const t = setTimeout(() => dispatch({ type: "END_TURN" }), 650);
+    const t = setTimeout(endTurn, 650);
     return () => clearTimeout(t);
-  }, [battle, isPlayerTurn, dispatch]);
+  }, [battle, isPlayerTurn, endTurn]);
 
   // ── 範圍、目標、預覽 ────────────────────────────────
   const reach = useMemo(() => {
@@ -198,6 +208,17 @@ export function BattleScreen(props: BattleScreenProps) {
     for (const h of skillTargets(battle, selected, activeSkill.id)) m.set(hexKey(h), h);
     return m;
   }, [battle, selected, activeSkill, isPlayerTurn]);
+
+  // 靈聽(布蘭在場):看得見每隻野獸下一步要撲向誰
+  const listener = living(battle, "hero").some((u) => u.isHero && getClass(getHero(u.defId).classId).family === "hanitu");
+  const intents = useMemo(() => {
+    if (!listener || !isPlayerTurn) return [];
+    const asEnemyTurn: BattleState = { ...battle, side: "enemy", units: battle.units.map((u) => (u.side === "enemy" ? { ...u, moved: false, acted: false } : u)) };
+    return living(asEnemyTurn, "enemy")
+      .map((u) => ({ from: u.pos, plan: planEnemy(asEnemyTurn, u) }))
+      .filter((x) => x.plan.skill)
+      .map((x) => ({ from: x.from, to: x.plan.skill!.target }));
+  }, [battle, listener, isPlayerTurn]);
 
   const aimKey = armed ?? (hoverHex && targets.has(hexKey(hoverHex)) ? hexKey(hoverHex) : null);
   const selfSkill = activeSkill && (activeSkill.target === "self") ? activeSkill : null;
@@ -233,6 +254,16 @@ export function BattleScreen(props: BattleScreenProps) {
     setFocusHex(h);
     const key = hexKey(h);
     const who = unitAt(battle, h);
+    if (deploying) {
+      if (who && who.isHero) {
+        audio.sfx("select");
+        setSelectedId(who.id === selectedId ? null : who.id);
+      } else if (selected && battle.deploy.includes(key)) {
+        audio.sfx("move");
+        onChange(battleReducer(battle, { type: "DEPLOY_MOVE", unitId: selected.id, to: h }));
+      } else if (who) setInspectId(who.id);
+      return;
+    }
     if (!isPlayerTurn) {
       if (who) setInspectId(who.id);
       return;
@@ -395,7 +426,7 @@ export function BattleScreen(props: BattleScreenProps) {
           </div>
         </div>
         <span className="chip">回合 {battle.turn}</span>
-        <span className="chip">敵 {foesLeft}</span>
+        <span className="chip hide-narrow">敵 {foesLeft}</span>
         {allowUndo && (
           <button
             className="btn btn-sm btn-ghost btn-icon"
@@ -412,7 +443,10 @@ export function BattleScreen(props: BattleScreenProps) {
             ↶
           </button>
         )}
-        <button className="btn btn-sm btn-ghost btn-icon" onClick={() => setLogOpen((v) => !v)} title="戰鬥紀錄">
+        <button className="btn btn-sm btn-ghost btn-icon" onClick={() => setHelpOpen(true)} title="相剋">
+          ☯
+        </button>
+        <button className="btn btn-sm btn-ghost btn-icon hide-narrow" onClick={() => setLogOpen((v) => !v)} title="戰鬥紀錄">
           📜
         </button>
         <MuteButton />
@@ -452,6 +486,9 @@ export function BattleScreen(props: BattleScreenProps) {
                     />
                   )}
                   {inArea && <polygon points={pts} fill={activeSkill?.effect === "heal" ? "rgba(140,240,150,0.35)" : "rgba(255,120,60,0.38)"} stroke="#ffd35a" strokeWidth={2} strokeDasharray="5 3" style={{ pointerEvents: "none" }} />}
+                  {deploying && battle.deploy.includes(key) && (
+                    <polygon points={pts} fill="rgba(110,180,255,0.3)" stroke="rgba(170,215,255,0.95)" strokeWidth={1.6} strokeDasharray="5 3" style={{ pointerEvents: "none" }} />
+                  )}
                   {armed === key && <polygon points={pts} fill="none" stroke="#fff" strokeWidth={3} style={{ pointerEvents: "none" }} />}
                 </g>
               );
@@ -492,6 +529,14 @@ export function BattleScreen(props: BattleScreenProps) {
                       </>
                     )}
                   </g>
+                  {u.ctype && (
+                    <g transform={`translate(${-HEX * 0.66},${HEX * 0.6})`}>
+                      <circle r={7.5} fill={CTYPE_INFO[u.ctype].color} stroke="#fff" strokeWidth={1.2} />
+                      <text textAnchor="middle" y={3.5} fontSize={9}>
+                        {CTYPE_INFO[u.ctype].icon}
+                      </text>
+                    </g>
+                  )}
                   {u.statuses.length > 0 && (
                     <text x={HEX * 0.5} y={-w + HEX * 0.7} fontSize={12} textAnchor="end">
                       {u.statuses.map((s) => STATUS_ICON[s.id]).join("")}
@@ -502,6 +547,17 @@ export function BattleScreen(props: BattleScreenProps) {
                       {hit.kind === "heal" ? `+${hit.amount}` : hit.lethal ? `擊倒 ${hit.amount}` : `-${hit.amount}`}
                     </text>
                   )}
+                </g>
+              );
+            })}
+
+            {intents.map((it, i) => {
+              const a = hexToPixel(it.from, HEX);
+              const b = hexToPixel(it.to, HEX);
+              return (
+                <g key={i} style={{ pointerEvents: "none" }} opacity={0.75}>
+                  <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#c9a8ff" strokeWidth={2} strokeDasharray="4 4" />
+                  <circle cx={b.x} cy={b.y} r={HEX * 0.28} fill="none" stroke="#c9a8ff" strokeWidth={2} />
                 </g>
               );
             })}
@@ -557,6 +613,11 @@ export function BattleScreen(props: BattleScreenProps) {
                   return (
                     <span key={p.unitId} style={{ marginRight: 8 }}>
                       {v.name} <b style={{ color: p.kind === "heal" ? "var(--good)" : "var(--ochre)" }}>{p.kind === "heal" ? `+${p.amount}` : `-${p.amount}`}</b>
+                      {p.kind === "damage" && counterLabel(selected.ctype, v.ctype) && (
+                        <span style={{ color: counterLabel(selected.ctype, v.ctype) === "剋制" ? "var(--good)" : "var(--ochre)", fontSize: 12 }}>
+                          {counterLabel(selected.ctype, v.ctype) === "剋制" ? " 剋制▲" : " 被剋▼"}
+                        </span>
+                      )}
                       {p.lethal && " 擊倒!"}
                     </span>
                   );
@@ -646,6 +707,11 @@ export function BattleScreen(props: BattleScreenProps) {
         )}
       </div>
 
+      {helpOpen && <CounterHelp onClose={() => setHelpOpen(false)} />}
+
+      {deploying ? (
+        <DeployBar battle={battle} selectedId={selectedId} onSelect={setSelectedId} onAction={(a) => onChange(battleReducer(battle, a))} />
+      ) : (
       <div className="battle-bottom">
         <div className="hero-strip">
           {heroes.map((h) => (
@@ -712,11 +778,12 @@ export function BattleScreen(props: BattleScreenProps) {
               </div>
             )}
           </div>
-          <button className="btn btn-moss" disabled={!isPlayerTurn} onClick={() => dispatch({ type: "END_TURN" })} style={{ flex: "none" }}>
+          <button className="btn btn-moss" disabled={!isPlayerTurn} onClick={endTurn} style={{ flex: "none" }}>
             結束回合
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }

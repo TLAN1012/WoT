@@ -43,7 +43,7 @@ export function deriveStats(p: HeroProgress): DerivedStats {
     maxHp: 20 + a.vit * 6,
     atk: a.str * 2 + (cls.family === "hanup" ? a.agi : 0),
     // 祭司的法術出自靈力
-    mag: a.int * 2 + (cls.family === "inibs" ? a.spi : 0),
+    mag: a.int * 2 + (cls.family === "inibs" || cls.family === "hanitu" ? a.spi : 0),
     heal: a.spi * 2,
     def: a.vit + cls.armor,
     mdef: a.spi + Math.floor(a.int / 2),
@@ -110,6 +110,7 @@ export function newSave(difficulty: DifficultyId): SaveState {
     stars: {},
     seenIntro: [],
     inventory: [],
+    shards: {},
     equipment: {},
     nextUid: 1,
   };
@@ -156,7 +157,7 @@ export function loadSave(): SaveState | null {
     const s = JSON.parse(raw) as SaveState;
     if (s.version !== 1) return null;
     // 舊存檔沒有信物欄位
-    return { ...s, inventory: s.inventory ?? [], equipment: s.equipment ?? {}, nextUid: s.nextUid ?? 1 };
+    return { ...s, inventory: s.inventory ?? [], equipment: s.equipment ?? {}, nextUid: s.nextUid ?? 1, shards: s.shards ?? {} };
   } catch {
     return null;
   }
@@ -176,4 +177,24 @@ export function clearSave(): void {
   } catch {
     /* noop */
   }
+}
+
+// ── 招募 ──────────────────────────────────────────────
+export function addShards(s: SaveState, gains: Record<string, number>): SaveState {
+  const shards = { ...s.shards };
+  for (const [id, n] of Object.entries(gains)) if (!s.party.includes(id)) shards[id] = (shards[id] ?? 0) + n;
+  return { ...s, shards };
+}
+
+export function canRecruit(s: SaveState, heroId: string): boolean {
+  const h = getHero(heroId);
+  return !!h.recruit && !s.party.includes(heroId) && (s.shards[heroId] ?? 0) >= h.recruit.need;
+}
+
+/** 招募:以同伴的平均等級加入,才跟得上 */
+export function recruit(s: SaveState, heroId: string): SaveState {
+  if (!canRecruit(s, heroId)) return s;
+  const avg = Math.round(s.party.reduce((n, id) => n + s.heroes[id].level, 0) / s.party.length);
+  const hero = { ...newHero(heroId), level: avg, unspent: (avg - 1) * POINTS_PER_LEVEL };
+  return { ...s, party: [...s.party, heroId], heroes: { ...s.heroes, [heroId]: hero } };
 }

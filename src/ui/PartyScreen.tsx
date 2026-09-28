@@ -3,14 +3,15 @@
  * 下方是「六大職業系」圖鑑,還沒相遇的系只顯示剪影與語源。
  */
 import { ATTR_NAMES, FAMILIES, getClass, getFamily, XP_PER_LEVEL } from "../game/classes";
-import { getHero } from "../game/heroes";
+import { getHero, HEROES } from "../game/heroes";
 import { getKeepsake, SLOTS } from "../game/keepsakes";
-import { ATTR_IDS, deriveStats, equip, heroAttrs, resetPoints, spendPoint, wearer } from "../game/progress";
+import { ATTR_IDS, canRecruit, deriveStats, equip, heroAttrs, resetPoints, spendPoint, wearer } from "../game/progress";
 import { getSkill } from "../game/skills";
 import { useState } from "react";
 import type { HeroProgress, SaveState, SlotId } from "../game/types";
 import { keepsakeArt, portraitArt } from "./assets";
 import { KeepsakeCard } from "./KeepsakeCard";
+import { TypeBadge } from "./DeployBar";
 
 function Slots({ save, heroId, onPick }: { save: SaveState; heroId: string; onPick: (slot: SlotId) => void }) {
   const eq = save.equipment[heroId] ?? {};
@@ -52,6 +53,7 @@ function HeroSheet({ p, save, onChange, onPick }: { p: HeroProgress; save: SaveS
               {fam.name}
               <small style={{ fontWeight: 400, fontSize: 11 }}>{fam.zh}</small>
             </span>
+            <TypeBadge t={fam.ctype} />
           </div>
           <div className="sub" style={{ fontSize: 12.5 }}>
             {cls.name}・名字來自{hero.etymology}
@@ -141,7 +143,61 @@ function HeroSheet({ p, save, onChange, onPick }: { p: HeroProgress; save: SaveS
   );
 }
 
-export function PartyScreen(props: { save: SaveState; onChange: (s: SaveState) => void; onBack: () => void }) {
+function RecruitPanel({ save, onRecruit }: { save: SaveState; onRecruit: (id: string) => void }) {
+  const candidates = HEROES.filter((h) => h.recruit && !save.party.includes(h.id));
+  if (!candidates.length) return null;
+  return (
+    <div className="paper">
+      <div className="paper-title">沿著記號追來的族人</div>
+      <div className="sub" style={{ fontSize: 13, marginBottom: 8 }}>
+        戰鬥中會撿到他們留下的足跡。第一次打贏每一關都有,重玩打過的關卡也會隨機撿到。集滿就能讓他們加入。
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 10 }}>
+        {candidates.map((h) => {
+          const have = save.shards[h.id] ?? 0;
+          const need = h.recruit!.need;
+          const ready = canRecruit(save, h.id);
+          const cls = getClass(h.classId);
+          const fam = getFamily(cls.family);
+          return (
+            <div key={h.id} className="row" style={{ flexWrap: "nowrap", gap: 10, alignItems: "flex-start" }}>
+              <img
+                src={portraitArt(h.id)}
+                alt=""
+                style={{ width: 64, height: 84, objectFit: "cover", objectPosition: "top", borderRadius: 8, border: "2px solid var(--bark)", background: "#cfd9d0", filter: have ? "none" : "brightness(0.2)" }}
+              />
+              <div className="grow">
+                <div className="row" style={{ gap: 6 }}>
+                  <b style={{ fontFamily: "var(--font-ui)", fontSize: 17 }}>{have ? h.name : "???"}</b>
+                  <span className="family-badge" style={{ background: fam.color }}>
+                    {fam.name}
+                    <small style={{ fontWeight: 400, fontSize: 11 }}>{fam.zh}</small>
+                  </span>
+                  <TypeBadge t={fam.ctype} />
+                </div>
+                <div className="row" style={{ gap: 6, fontSize: 13, margin: "4px 0" }}>
+                  <img src={keepsakeArt(`shard-${h.id}`)} alt="" style={{ width: 26, height: 26, objectFit: "contain" }} />
+                  {h.recruit!.shard} {Math.min(have, need)}/{need}
+                  <div className="bar xp grow" style={{ maxWidth: 120 }}>
+                    <i style={{ width: `${Math.min(1, have / need) * 100}%` }} />
+                  </div>
+                </div>
+                {have > 0 && <div style={{ fontSize: 12.5 }}>{h.bio}</div>}
+                {ready && (
+                  <button className="btn btn-primary btn-sm" style={{ marginTop: 6 }} onClick={() => onRecruit(h.id)}>
+                    讓{h.name}加入
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function PartyScreen(props: { save: SaveState; onChange: (s: SaveState) => void; onBack: () => void; onRecruit: (id: string) => void }) {
   const { save } = props;
   const met = new Set(save.party.map((id) => getClass(getHero(id).classId).family));
   const [picking, setPicking] = useState<{ heroId: string; slot: SlotId } | null>(null);
@@ -158,6 +214,7 @@ export function PartyScreen(props: { save: SaveState; onChange: (s: SaveState) =
         <div className="sub" style={{ color: "var(--paper)" }}>
           每升一級,職業會自動成長,另外還有 3 點可以自由分配。想讓巴度更耐打就加「體」,想讓比杜的閃電更痛就加「智」。
         </div>
+        <RecruitPanel save={save} onRecruit={props.onRecruit} />
         {save.party.map((id) => (
           <HeroSheet
             key={id}

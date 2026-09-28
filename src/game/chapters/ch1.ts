@@ -14,6 +14,9 @@ const DEFEAT = [{ text: "三人撤回安全的地方,包紮傷口、重新生火
 
 const B1: BattleDef = {
   id: "c1-shore",
+  deploy: [[2, 2], [3, 2], [1, 3], [2, 3], [3, 3], [2, 4], [3, 4], [4, 4], [2, 5], [3, 5], [4, 5]],
+  maxHeroes: 3,
+  shards: { first: { mata: 4 }, replay: ["mata"] },
   music: { slot: "battle", variant: "a" },
   reward: "hyena-head",
   winArt: "win-shore",
@@ -78,6 +81,9 @@ const B1: BattleDef = {
 
 const B2: BattleDef = {
   id: "c1-basalt",
+  deploy: [[4, 3], [5, 3], [6, 3], [4, 4], [5, 4], [6, 4], [4, 5], [5, 5], [6, 5]],
+  maxHeroes: 4,
+  shards: { first: { mata: 2, kasiw: 3 }, replay: ["mata", "kasiw", "bulan"] },
   music: { slot: "battle", variant: "b" },
   reward: "basalt-shard",
   winArt: "win-basalt",
@@ -145,6 +151,9 @@ const B2: BattleDef = {
 
 const B3: BattleDef = {
   id: "c1-blight",
+  deploy: [[1, 3], [2, 3], [3, 3], [1, 4], [2, 4], [3, 4], [1, 5], [2, 5], [3, 5], [1, 6], [2, 6], [3, 6]],
+  maxHeroes: 4,
+  shards: { first: { kasiw: 3, bulan: 3 }, replay: ["kasiw", "bulan"] },
   music: { slot: "boss", variant: "a" },
   reward: "elephant-blessing",
   winArt: "win-blight",
@@ -178,6 +187,7 @@ const B3: BattleDef = {
     { id: "w1", defId: "wisp", cell: [8, 1] },
     { id: "w2", defId: "wisp", cell: [9, 3] },
     { id: "w3", defId: "wisp", cell: [10, 7] },
+    { id: "w4", defId: "wisp", cell: [11, 2] },
   ],
   intro: [
     { text: "越往東走,霧越濃,地上的冰也越來越青。" },

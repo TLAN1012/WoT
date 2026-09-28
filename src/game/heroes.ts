@@ -35,6 +35,64 @@ export const HEROES: HeroDef[] = [
     facing: "right",
     bio: "十二歲,話很少,夜裡總是在數星星。某天他舉起黑曜石杖,天上就落下了一道閃電。",
   },
+  // ── 沿著記號追上來的族人(集滿足跡就能招募) ──
+  {
+    id: "mata",
+    name: "瑪塔",
+    roman: "Mata",
+    etymology: "原始南島語 *maCa「眼睛」。",
+    title: "Hanup・追跡獵手",
+    classId: "hanup-1",
+    facing: "right",
+    bio: "十四歲,村裡眼睛最尖的獵手。巴度出發那天她在山上打獵,回來發現他們不見了,氣得背起弓就追。",
+    recruit: {
+      shard: "羽箭",
+      need: 6,
+      story: [
+        { speaker: "mata", text: "找到你們了!一路上的羽箭記號,都是我射在雪地上的。" },
+        { speaker: "batu", text: "瑪塔?妳一個人跟過來的?" },
+        { speaker: "mata", text: "哼,你們三個連鹿的腳印都看不懂,沒有我怎麼辦。遠一點的野獸,交給我的弓。" },
+      ],
+    },
+  },
+  {
+    id: "kasiw",
+    name: "卡西",
+    roman: "Kasiw",
+    etymology: "原始南島語 *kaSiw「樹」。",
+    title: "Vukid・林之子",
+    classId: "vukid-1",
+    facing: "right",
+    bio: "十三歲,不太說話,在森林裡卻像回到家。老祭司說他聽得懂樹的聲音,有時還會變成熊。",
+    recruit: {
+      shard: "樹苗",
+      need: 6,
+      story: [
+        { speaker: "kasiw", text: "……(把一株小樹苗種在雪地裡,抬頭看了看大家)" },
+        { speaker: "danum", text: "是卡西!你一路種著這些樹苗過來的?" },
+        { speaker: "kasiw", text: "嗯。這樣回去的人,就找得到路。……我也想去看那座山。" },
+      ],
+    },
+  },
+  {
+    id: "bulan",
+    name: "布蘭",
+    roman: "Bulan",
+    etymology: "原始南島語 *bulaN「月亮」。",
+    title: "Hanitu・月下靈語者",
+    classId: "hanitu-1",
+    facing: "right",
+    bio: "十五歲,聽得見萬物之靈(hanitu)說話。她說野獸撲上來之前,心裡會先喊出要撲向誰。",
+    recruit: {
+      shard: "月貝",
+      need: 6,
+      story: [
+        { speaker: "bulan", text: "月亮每晚都掛在你們前面,我只要跟著月光走就好了。" },
+        { speaker: "bitu", text: "妳……也看得見星星在往東走?" },
+        { speaker: "bulan", text: "我聽得見。山林裡的靈說,有人要去太陽升起的地方。我來幫你們聽野獸在想什麼。" },
+      ],
+    },
+  },
 ];
 
 const byId = new Map(HEROES.map((h) => [h.id, h]));

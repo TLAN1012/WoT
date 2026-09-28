@@ -3,7 +3,7 @@ import { XP_PER_LEVEL } from "../game/classes";
 import { getHero } from "../game/heroes";
 import type { BattleResult } from "../game/battle";
 import type { HeroProgress } from "../game/types";
-import { portraitArt, storyArt } from "./assets";
+import { keepsakeArt, portraitArt, storyArt } from "./assets";
 import { KeepsakeCard } from "./KeepsakeCard";
 
 export interface HeroGain {
@@ -19,6 +19,9 @@ export function ResultScreen(props: {
   parTurns: number;
   /** 這次新得到的信物(首勝獎勵 + 掉落) */
   rewards: string[];
+  /** 這次撿到的足跡 */
+  shards: Record<string, number>;
+  shardTotals: Record<string, number>;
   winArt: string;
   onNext: () => void;
   onRetry: () => void;
@@ -66,6 +69,27 @@ export function ResultScreen(props: {
             );
           })}
         </div>
+        {Object.keys(props.shards).length > 0 && (
+          <>
+            <div className="divider" />
+            <div className="paper-title">撿到足跡</div>
+            {Object.entries(props.shards).map(([id, n]) => {
+              const h = getHero(id);
+              return (
+                <div key={id} className="row reward" style={{ gap: 8, fontSize: 14 }}>
+                  <img src={keepsakeArt(`shard-${id}`)} alt="" style={{ width: 40, height: 40, objectFit: "contain" }} />
+                  <span>
+                    {h.name}的{h.recruit?.shard} ×{n}
+                  </span>
+                  <span className="sub">
+                    ({Math.min(props.shardTotals[id] ?? 0, h.recruit?.need ?? 0)}/{h.recruit?.need})
+                  </span>
+                  {(props.shardTotals[id] ?? 0) >= (h.recruit?.need ?? 99) && <span className="level-up">可以招募了!</span>}
+                </div>
+              );
+            })}
+          </>
+        )}
         {props.rewards.length > 0 && (
           <>
             <div className="divider" />
