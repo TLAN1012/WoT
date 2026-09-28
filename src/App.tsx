@@ -28,7 +28,7 @@ interface StoryState {
   background?: string;
   title?: string;
   subtitle?: string;
-  /** 劇情配樂版本(序章/終章用吟唱) */
+  /** 劇情配樂版本(序章/終章用洞簫) */
   music?: Variant;
   then: () => void;
 }
