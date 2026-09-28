@@ -14,10 +14,23 @@ export type SfxId = "hit" | "magic" | "heal" | "down" | "select" | "move";
 
 const MUTE_KEY = "wot-muted";
 
+/** 曲尾與下一輪重疊的秒數(循環接縫)、換曲時的淡入淡出秒數 */
+const LOOP_XF = 2.5;
+const SWITCH_FADE = 1.4;
+const MUSIC_VOL = 0.45;
+
+interface Voice {
+  id: BgmId;
+  gain: GainNode;
+  sources: AudioBufferSourceNode[];
+  timer?: ReturnType<typeof setTimeout>;
+}
+
 class Audio {
   private ctx: AudioContext | null = null;
-  private el: HTMLAudioElement | null = null;
-  private current: BgmId | null = null;
+  private bus: GainNode | null = null;
+  private buffers = new Map<BgmId, Promise<AudioBuffer>>();
+  private voice: Voice | null = null;
   private wanted: BgmId | null = null;
   muted = (() => {
     try {
@@ -34,28 +47,83 @@ class Audio {
       } catch {
         return;
       }
+      this.bus = this.ctx.createGain();
+      this.bus.gain.value = this.muted ? 0 : 1;
+      this.bus.connect(this.ctx.destination);
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
-    if (this.wanted && this.current !== this.wanted) this.playBgm(this.wanted);
+    if (this.wanted && this.voice?.id !== this.wanted) this.playBgm(this.wanted);
+  }
+
+  private load(id: BgmId): Promise<AudioBuffer> {
+    let p = this.buffers.get(id);
+    if (!p) {
+      const ctx = this.ctx!;
+      p = fetch(TRACKS[id])
+        .then((r) => r.arrayBuffer())
+        .then((b) => ctx.decodeAudioData(b));
+      p.catch(() => this.buffers.delete(id));
+      this.buffers.set(id, p);
+    }
+    return p;
+  }
+
+  /** 排一段曲子;循環曲在曲尾前 LOOP_XF 秒排下一段,兩段交叉淡入淡出 */
+  private segment(v: Voice, buf: AudioBuffer, when: number, loop: boolean, first: boolean) {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    const xf = Math.min(LOOP_XF, buf.duration / 4);
+    g.gain.setValueAtTime(first ? 1 : 0, when);
+    if (!first) g.gain.linearRampToValueAtTime(1, when + xf);
+    if (loop) {
+      g.gain.setValueAtTime(1, when + buf.duration - xf);
+      g.gain.linearRampToValueAtTime(0, when + buf.duration);
+    }
+    src.connect(g).connect(v.gain);
+    src.start(when);
+    v.sources = [...v.sources.slice(-1), src];
+    if (loop) {
+      const next = when + buf.duration - xf;
+      v.timer = setTimeout(() => {
+        if (this.voice === v) this.segment(v, buf, next, true, false);
+      }, Math.max(0, (next - ctx.currentTime - 1) * 1000));
+    }
   }
 
   playBgm(id: BgmId) {
     this.wanted = id;
-    if (this.current === id && this.el && !this.el.paused) return;
-    if (!this.ctx) return; // 等使用者第一次點擊
-    this.el?.pause();
-    const el = new window.Audio(TRACKS[id]);
-    el.loop = id === "camp" || id === "battle";
-    el.volume = 0.45;
-    el.muted = this.muted;
-    void el.play().catch(() => undefined);
-    this.el = el;
-    this.current = id;
+    const ctx = this.ctx;
+    if (!ctx || !this.bus) return; // 等使用者第一次點擊
+    if (this.voice?.id === id) return;
+    // 舊曲淡出
+    const old = this.voice;
+    if (old) {
+      clearTimeout(old.timer);
+      const t = ctx.currentTime;
+      old.gain.gain.cancelScheduledValues(t);
+      old.gain.gain.setValueAtTime(old.gain.gain.value, t);
+      old.gain.gain.linearRampToValueAtTime(0, t + SWITCH_FADE);
+      setTimeout(() => old.sources.forEach((s) => s.stop()), SWITCH_FADE * 1000 + 100);
+    }
+    const v: Voice = { id, gain: ctx.createGain(), sources: [] };
+    v.gain.gain.value = 0;
+    v.gain.connect(this.bus);
+    this.voice = v;
+    void this.load(id).then((buf) => {
+      if (this.voice !== v) return;
+      const t = ctx.currentTime + 0.05;
+      // 新曲淡入(和舊曲的淡出重疊)
+      v.gain.gain.setValueAtTime(0, t);
+      v.gain.gain.linearRampToValueAtTime(MUSIC_VOL, t + SWITCH_FADE);
+      this.segment(v, buf, t, id === "camp" || id === "battle", true);
+    });
   }
 
   toggleMute(): boolean {
     this.muted = !this.muted;
-    if (this.el) this.el.muted = this.muted;
+    if (this.ctx && this.bus) this.bus.gain.setTargetAtTime(this.muted ? 0 : 1, this.ctx.currentTime, 0.1);
     try {
       localStorage.setItem(MUTE_KEY, this.muted ? "1" : "0");
     } catch {
@@ -123,3 +191,5 @@ class Audio {
 }
 
 export const audio = new Audio();
+// 除錯用:在主控台看目前播放的曲目
+(globalThis as { __wotAudio?: Audio }).__wotAudio = audio;
