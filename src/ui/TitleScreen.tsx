@@ -5,7 +5,7 @@ import type { DifficultyId } from "../game/types";
 import { storyArt } from "./assets";
 import { MuteButton } from "./MuteButton";
 
-export function TitleScreen(props: { hasSave: boolean; onContinue: () => void; onNew: (d: DifficultyId) => void }) {
+export function TitleScreen(props: { hasSave: boolean; onContinue: () => void; onNew: (d: DifficultyId) => void; onMusic: () => void }) {
   const [picking, setPicking] = useState(false);
   return (
     <div className="title-screen">
@@ -24,6 +24,9 @@ export function TitleScreen(props: { hasSave: boolean; onContinue: () => void; o
           )}
           <button className={`btn btn-lg ${props.hasSave ? "" : "btn-primary"}`} onClick={() => setPicking(true)}>
             新的旅程
+          </button>
+          <button className="btn btn-sm btn-ghost" onClick={props.onMusic}>
+            ♪ 音樂室
           </button>
           <a className="link" href={`${import.meta.env.BASE_URL}legacy/`}>
             舊版《南方祖記》十關(之後會成為七千年前的章節)

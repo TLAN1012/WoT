@@ -6,7 +6,8 @@
  * 進度即時寫入 localStorage;戰鬥中離開視同撤退。
  */
 import { useCallback, useEffect, useState } from "react";
-import { audio, type BgmId } from "./audio/audio";
+import { audio } from "./audio/audio";
+import { pickTrack, type Variant } from "./audio/music";
 import { battleResult, initBattle, type BattleResult } from "./game/battle";
 import { CHAPTERS } from "./game/chapters";
 import { getDifficulty } from "./game/difficulty";
@@ -14,18 +15,21 @@ import { gainXp, grantKeepsake, loadSave, newSave, writeSave, clearSave } from "
 import type { BattleDef, BattleState, SaveState, StoryPage } from "./game/types";
 import { BattleScreen } from "./ui/BattleScreen";
 import { ChapterScreen } from "./ui/ChapterScreen";
+import { MusicRoom } from "./ui/MusicRoom";
 import { PartyScreen } from "./ui/PartyScreen";
 import { ResultScreen, type HeroGain } from "./ui/ResultScreen";
 import { StoryScreen } from "./ui/StoryScreen";
 import { TitleScreen } from "./ui/TitleScreen";
 
-type Screen = "title" | "chapter" | "party" | "story" | "battle" | "result";
+type Screen = "title" | "chapter" | "party" | "story" | "battle" | "result" | "music";
 
 interface StoryState {
   pages: StoryPage[];
   background?: string;
   title?: string;
   subtitle?: string;
+  /** 劇情配樂版本(序章/終章用吟唱) */
+  music?: Variant;
   then: () => void;
 }
 
@@ -53,12 +57,15 @@ export default function App() {
     };
   }, []);
 
+  // 依場合選曲(音樂室自己控制播放)
   useEffect(() => {
-    let bgm: BgmId = "camp";
-    if (screen === "battle") bgm = "battle";
-    if (screen === "result" && result) bgm = result.result.victory ? "victory" : "defeat";
-    audio.playBgm(bgm);
-  }, [screen, result]);
+    if (screen === "music") return;
+    let track = pickTrack("theme");
+    if (screen === "story") track = pickTrack("story", story?.music);
+    if (screen === "battle" && battleDef) track = pickTrack(battleDef.music.slot, battleDef.music.variant);
+    if (screen === "result" && result) track = pickTrack(result.result.victory ? "victory" : "defeat");
+    audio.playBgm(track);
+  }, [screen, result, story, battleDef]);
 
   const playStory = useCallback((s: StoryState) => {
     if (!s.pages.length) return s.then();
@@ -70,7 +77,7 @@ export default function App() {
     (s: SaveState) => {
       if (!s.seenIntro.includes(chapter.id)) {
         setSave({ ...s, seenIntro: [...s.seenIntro, chapter.id] });
-        playStory({ pages: chapter.intro, background: "title", title: chapter.title, subtitle: chapter.era, then: () => setScreen("chapter") });
+        playStory({ pages: chapter.intro, background: "title", title: chapter.title, subtitle: chapter.era, music: "b", then: () => setScreen("chapter") });
       } else setScreen("chapter");
     },
     [playStory],
@@ -122,7 +129,7 @@ export default function App() {
     playStory({
       pages: battleDef.outro,
       background: battleDef.art,
-      then: () => (last ? playStory({ pages: chapter.epilogue, background: "sunrise", then: () => setScreen("chapter") }) : setScreen("chapter")),
+      then: () => (last ? playStory({ pages: chapter.epilogue, background: "sunrise", music: "b", then: () => setScreen("chapter") }) : setScreen("chapter")),
     });
   }, [battleDef, result, playStory]);
 
@@ -143,10 +150,14 @@ export default function App() {
       />
     );
   }
+  if (screen === "music") {
+    return <MusicRoom onBack={() => setScreen(save ? "chapter" : "title")} />;
+  }
   if (screen === "title" || !save) {
     return (
       <TitleScreen
         hasSave={loadSave() !== null}
+        onMusic={() => setScreen("music")}
         onContinue={() => {
           const s = loadSave();
           if (!s) return;
@@ -190,9 +201,10 @@ export default function App() {
       save={save}
       onBattle={(b) => startBattle(b)}
       onParty={() => setScreen("party")}
-      onPrologue={() => playStory({ pages: chapter.intro, background: "title", title: chapter.title, subtitle: chapter.era, then: () => setScreen("chapter") })}
-      onEpilogue={() => playStory({ pages: chapter.epilogue, background: "sunrise", then: () => setScreen("chapter") })}
+      onPrologue={() => playStory({ pages: chapter.intro, background: "title", title: chapter.title, subtitle: chapter.era, music: "b", then: () => setScreen("chapter") })}
+      onEpilogue={() => playStory({ pages: chapter.epilogue, background: "sunrise", music: "b", then: () => setScreen("chapter") })}
       onTitle={() => setScreen("title")}
+      onMusic={() => setScreen("music")}
     />
   );
 }

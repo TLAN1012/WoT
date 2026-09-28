@@ -14,6 +14,7 @@ const DEFEAT = [{ text: "三人撤回安全的地方,包紮傷口、重新生火
 
 const B1: BattleDef = {
   id: "c1-shore",
+  music: { slot: "battle", variant: "a" },
   reward: "hyena-head",
   winArt: "win-shore",
   title: "離岸",
@@ -77,6 +78,7 @@ const B1: BattleDef = {
 
 const B2: BattleDef = {
   id: "c1-basalt",
+  music: { slot: "battle", variant: "b" },
   reward: "basalt-shard",
   winArt: "win-basalt",
   title: "玄武岩之夜",
@@ -143,6 +145,7 @@ const B2: BattleDef = {
 
 const B3: BattleDef = {
   id: "c1-blight",
+  music: { slot: "boss", variant: "a" },
   reward: "elephant-blessing",
   winArt: "win-blight",
   title: "寒祟古象",

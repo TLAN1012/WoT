@@ -278,6 +278,8 @@ export interface BattleDef {
   reward: string;
   /** 勝利插圖 */
   winArt: string;
+  /** 戰鬥配樂:段落與預設版本(玩家可在音樂室改) */
+  music: { slot: "battle" | "boss"; variant: "a" | "b" };
   /** 章節地圖上的位置(%) */
   node: { x: number; y: number };
 }

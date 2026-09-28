@@ -1,15 +1,9 @@
 /**
- * 音樂:沿用 WoT 原創的四首 MP3(營地、戰鬥、勝利、撤退);
+ * 音樂:自架 ACE-Step 生成的配樂(曲目與選曲見 music.ts),WebAudio 播放、循環接縫與換曲都交叉淡化;
  * 音效:WebAudio 即時合成(斧擊、法術、治療、倒下)。首次點擊後才能出聲(瀏覽器政策)。
  */
-const BASE = import.meta.env.BASE_URL;
-const TRACKS = {
-  camp: `${BASE}assets/audio/Banner_of_Takao.mp3`,
-  battle: `${BASE}assets/audio/Frontline_Calculations.mp3`,
-  victory: `${BASE}assets/audio/Victory_Over_Takao.mp3`,
-  defeat: `${BASE}assets/audio/Failed_war.mp3`,
-} as const;
-export type BgmId = keyof typeof TRACKS;
+import { trackLoops, trackUrl } from "./music";
+export type BgmId = string;
 export type SfxId = "hit" | "magic" | "heal" | "down" | "select" | "move";
 
 const MUTE_KEY = "wot-muted";
@@ -59,7 +53,7 @@ class Audio {
     let p = this.buffers.get(id);
     if (!p) {
       const ctx = this.ctx!;
-      p = fetch(TRACKS[id])
+      p = fetch(trackUrl(id))
         .then((r) => r.arrayBuffer())
         .then((b) => ctx.decodeAudioData(b));
       p.catch(() => this.buffers.delete(id));
@@ -117,7 +111,7 @@ class Audio {
       // 新曲淡入(和舊曲的淡出重疊)
       v.gain.gain.setValueAtTime(0, t);
       v.gain.gain.linearRampToValueAtTime(MUSIC_VOL, t + SWITCH_FADE);
-      this.segment(v, buf, t, id === "camp" || id === "battle", true);
+      this.segment(v, buf, t, trackLoops(id), true);
     });
   }
 

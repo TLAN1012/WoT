@@ -12,6 +12,7 @@ export function ChapterScreen(props: {
   onPrologue: () => void;
   onEpilogue: () => void;
   onTitle: () => void;
+  onMusic: () => void;
 }) {
   const { chapter, save } = props;
   const firstOpen = chapter.battles.findIndex((b) => !save.stars[b.id]);
@@ -28,6 +29,9 @@ export function ChapterScreen(props: {
             <h1 className="h1">{chapter.title}</h1>
           </div>
           <MuteButton />
+          <button className="btn btn-sm btn-ghost" onClick={props.onMusic} title="音樂室">
+            ♪
+          </button>
           <button className="btn btn-sm btn-ghost" onClick={props.onTitle}>
             標題
           </button>
