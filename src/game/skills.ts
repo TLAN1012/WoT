@@ -38,6 +38,11 @@ export const SKILLS: SkillDef[] = [
   { id: "requiem", name: "安魂", icon: "🕊️", desc: "安撫 3 格內一位同伴:解除暈眩、遲緩、定身與標記,並回復生命。", cost: 8, cooldown: 1, target: "ally", range: [0, 3], shape: "single", effect: "cleanse", scale: "heal", power: 1 },
   { id: "soulbind", name: "靈縛", icon: "🔗", desc: "抽取 3 格內敵人的生命之氣,把一半的傷害轉成自己的生命。", cost: 10, cooldown: 2, target: "enemy", range: [1, 3], shape: "single", effect: "drain", scale: "magic", power: 1.2 },
   { id: "gore", name: "鹿角頂", icon: "🦌", desc: "用發光的鹿角頂撞相鄰的敵人。", cost: 0, cooldown: 0, target: "enemy", range: [1, 1], shape: "single", effect: "damage", scale: "phys", power: 1.1 },
+  // ── 第二景的野獸 ──
+  { id: "ram", name: "衝撞", icon: "🐗", desc: "低頭直線衝向 2~3 格外的目標,撞擊並擊退。", cost: 0, cooldown: 2, target: "enemy", range: [2, 3], shape: "dash", effect: "damage", scale: "phys", power: 1.25, knockback: 1 },
+  { id: "stone", name: "丟石子", icon: "🪨", desc: "從 1~2 格外丟石子。", cost: 0, cooldown: 0, target: "enemy", range: [1, 2], shape: "single", effect: "damage", scale: "phys", power: 0.9 },
+  { id: "maul", name: "熊掌拍", icon: "🐾", desc: "重重一掌,打中前方三格。", cost: 0, cooldown: 0, target: "enemy", range: [1, 1], shape: "cleave", effect: "damage", scale: "phys", power: 1 },
+  { id: "rally", name: "呼喚山豬群", icon: "📯", desc: "山豬神長嚎,兩頭山豬從林中衝出來。", cost: 0, cooldown: 3, target: "self", range: [0, 0], shape: "ring", effect: "summon", scale: "phys", power: 0, summon: "boar" },
   // ── 野獸與寒祟 ──
   { id: "bite", name: "撕咬", icon: "🦷", desc: "撲上來咬。鬣狗包圍同一個目標時更兇狠。", cost: 0, cooldown: 0, target: "enemy", range: [1, 1], shape: "single", effect: "damage", scale: "phys", power: 1 },
   { id: "howl", name: "號令", icon: "🐺", desc: "首領長嚎:所有鬣狗傷害 +30%,持續 2 回合。", cost: 0, cooldown: 4, target: "self", range: [0, 0], shape: "ring", size: 99, effect: "buff", scale: "phys", power: 0, statuses: [{ id: "might", turns: 2 }] },

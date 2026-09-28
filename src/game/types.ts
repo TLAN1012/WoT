@@ -121,6 +121,8 @@ export interface HeroDef {
   /** 立繪臉朝向:朝右的擺在左邊、朝左的擺在右邊 */
   facing: "left" | "right";
   bio: string;
+  /** 各代承名者的介紹(祖名傳承) */
+  heirBios?: Record<number, string>;
   /** 需要招募的英雄:足跡(碎片)名稱與加入時的劇情 */
   recruit?: { shard: string; need: number; story: StoryPage[] };
 }
@@ -145,6 +147,8 @@ export interface EnemyDef {
   pack?: boolean;
   /** 不會移動(圖騰) */
   immobile?: boolean;
+  /** 闊葉林/針葉林移動不減速(雲豹) */
+  forestWalker?: boolean;
   /** 被擊倒時是「淨化」而不是死亡 */
   purify?: boolean;
   /** 圖騰:每回合開始時治療周圍友軍 */
@@ -226,7 +230,16 @@ export type CharmEffect =
   | "magicRes15"
   | "executioner"
   | "moveUp"
-  | "killHeal";
+  | "killHeal"
+  | "firstMove2"
+  | "tideWalker"
+  | "healAura"
+  | "rangeUp"
+  | "guardAlly"
+  | "lastStand"
+  | "firstStrike"
+  | "counterBoost"
+  | "resStart";
 
 export interface KeepsakeDef {
   id: string;
@@ -244,6 +257,7 @@ export interface KeepsakeItem {
 // ── 關卡 ──────────────────────────────────────────────
 export type Objective =
   | { kind: "rout" }
+  | { kind: "reach"; cells: Cell[] }
   | { kind: "survive"; turns: number; orBoss?: string }
   | { kind: "purify"; unitId: string };
 
@@ -258,6 +272,14 @@ export interface Wave {
   turn: number;
   text: string;
   units: Placement[];
+}
+
+/** 漲潮:某回合開始時,一批格子變成淺灘或海 */
+export interface Tide {
+  turn: number;
+  text?: string;
+  cells: Cell[];
+  to: string;
 }
 
 export interface StoryPage {
@@ -286,6 +308,7 @@ export interface BattleDef {
   shards: { first: Record<string, number>; replay: string[] };
   enemies: Placement[];
   waves?: Wave[];
+  tides?: Tide[];
   intro: StoryPage[];
   outro: StoryPage[];
   defeat: StoryPage[];
@@ -301,6 +324,10 @@ export interface BattleDef {
 
 export interface ChapterDef {
   id: string;
+  /** 第幾代(祖名傳承) */
+  generation: number;
+  /** 前一章全破才開放 */
+  requires?: string;
   title: string;
   subtitle: string;
   era: string;
@@ -338,6 +365,7 @@ export interface BattleState {
   terrain: Record<string, string>;
   objective: Objective;
   waves: Wave[];
+  tides: Tide[];
   log: LogEntry[];
   outcome: Outcome;
   seed: number;
@@ -374,6 +402,8 @@ export interface HeroProgress {
 
 export interface SaveState {
   version: 1;
+  /** 目前是第幾代(祖名傳承) */
+  generation: number;
   difficulty: DifficultyId;
   party: string[];
   heroes: Record<string, HeroProgress>;

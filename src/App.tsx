@@ -9,9 +9,10 @@ import { useCallback, useEffect, useState } from "react";
 import { audio } from "./audio/audio";
 import { pickTrack, type Variant } from "./audio/music";
 import { battleResult, initBattle, type BattleResult } from "./game/battle";
-import { CHAPTERS } from "./game/chapters";
+import { chapterUnlocked, CHAPTERS, getChapter } from "./game/chapters";
 import { getDifficulty } from "./game/difficulty";
-import { addShards, gainXp, grantKeepsake, loadSave, newSave, recruit, writeSave, clearSave } from "./game/progress";
+import { addShards, gainXp, grantKeepsake, inherit, loadSave, newSave, recruit, writeSave, clearSave } from "./game/progress";
+import { setArtGeneration } from "./ui/assets";
 import { getHero } from "./game/heroes";
 import type { BattleDef, BattleState, SaveState, StoryPage } from "./game/types";
 import { BattleScreen } from "./ui/BattleScreen";
@@ -34,10 +35,15 @@ interface StoryState {
   then: () => void;
 }
 
-const chapter = CHAPTERS[0];
+/** 最新開放的章節 */
+function latestChapter(s: SaveState): string {
+  return [...CHAPTERS].reverse().find((c) => chapterUnlocked(c, s.stars))?.id ?? CHAPTERS[0].id;
+}
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("title");
+  const [chapterId, setChapterId] = useState("ch1");
+  const chapter = getChapter(chapterId);
   const [save, setSave] = useState<SaveState | null>(null);
   const [story, setStory] = useState<StoryState | null>(null);
   const [battleDef, setBattleDef] = useState<BattleDef | null>(null);
@@ -77,12 +83,20 @@ export default function App() {
     setScreen("story");
   }, []);
 
+  /** 進入章節:跨入新的一代時先祖名傳承;第一次進入播序章 */
   const openChapter = useCallback(
-    (s: SaveState) => {
-      if (!s.seenIntro.includes(chapter.id)) {
-        setSave({ ...s, seenIntro: [...s.seenIntro, chapter.id] });
-        playStory({ pages: chapter.intro, background: "title", title: chapter.title, subtitle: chapter.era, music: "b", then: () => setScreen("chapter") });
-      } else setScreen("chapter");
+    (s: SaveState, id: string) => {
+      const ch = getChapter(id);
+      setChapterId(id);
+      let next = inherit(s, ch.generation);
+      if (!next.seenIntro.includes(ch.id)) {
+        next = { ...next, seenIntro: [...next.seenIntro, ch.id] };
+        setSave(next);
+        playStory({ pages: ch.intro, background: "title", title: ch.title, subtitle: ch.era, music: "b", then: () => setScreen("chapter") });
+      } else {
+        setSave(next);
+        setScreen("chapter");
+      }
     },
     [playStory],
   );
@@ -146,9 +160,10 @@ export default function App() {
       background: battleDef.art,
       then: () => (last ? playStory({ pages: chapter.epilogue, background: "sunrise", music: "b", then: () => setScreen("chapter") }) : setScreen("chapter")),
     });
-  }, [battleDef, result, playStory]);
+  }, [battleDef, result, playStory, chapter]);
 
   // ── 畫面 ──────────────────────────────────────────
+  setArtGeneration(save?.generation ?? 1);
   if (screen === "story" && story) {
     return (
       <StoryScreen
@@ -177,13 +192,13 @@ export default function App() {
           const s = loadSave();
           if (!s) return;
           setSave(s);
-          openChapter(s);
+          openChapter(s, latestChapter(s));
         }}
         onNew={(d) => {
           clearSave();
           const s = newSave(d);
           setSave(s);
-          openChapter(s);
+          openChapter(s, "ch1");
         }}
       />
     );
@@ -223,6 +238,8 @@ export default function App() {
   return (
     <ChapterScreen
       chapter={chapter}
+      chapters={CHAPTERS.map((c) => ({ id: c.id, title: c.title, unlocked: chapterUnlocked(c, save.stars) }))}
+      onSwitch={(id) => openChapter(save, id)}
       save={save}
       onBattle={(b) => startBattle(b)}
       onParty={() => setScreen("party")}

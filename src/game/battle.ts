@@ -24,7 +24,7 @@ import type { BattleDef, BattleState, CharmEffect, HeroProgress, LogEntry, Place
 const DEBUFFS: StatusId[] = ["stun", "slow", "root", "mark"];
 export const RAGE_ON_HIT = 15;
 export const RAGE_ON_HURT = 10;
-export const MAX_WISPS = 5;
+export const MAX_WISPS = 5; // 同種召喚物上限
 
 // ── 建立 ──────────────────────────────────────────────
 export function heroUnit(p: HeroProgress, pos: Hex, charms: CharmEffect[] = []): Unit {
@@ -43,8 +43,8 @@ export function heroUnit(p: HeroProgress, pos: Hex, charms: CharmEffect[] = []):
     maxHp: hpMax,
     hp: hpMax,
     resource: fam.resource,
-    maxRes: st.maxRes,
-    res: fam.resource === "rage" ? 20 : st.maxRes,
+    maxRes: st.maxRes + (charms.includes("resStart") && fam.resource === "mana" ? 15 : 0),
+    res: fam.resource === "rage" ? 20 + (charms.includes("resStart") ? 30 : 0) : st.maxRes + (charms.includes("resStart") ? 15 : 0),
     resRegen: st.resRegen,
     atk: st.atk,
     mag: st.mag,
@@ -130,6 +130,7 @@ export function initBattle(def: BattleDef, save: SaveState, seed = Date.now() % 
     terrain,
     objective: def.objective,
     waves: def.waves ?? [],
+    tides: def.tides ?? [],
     log: [{ turn: 1, kind: "info", text: "布陣:把英雄放到出發區,準備好就開戰" }],
     outcome: "ongoing",
     seed,
@@ -175,6 +176,14 @@ export function moveAllowance(u: Unit): number {
   return Math.max(1, u.move - (hasStatus(u, "slow") ? 2 : 0));
 }
 
+/** 地形移動消耗(含雲豹林行、信物涉水) */
+export function moveCost(u: Unit, terrainId: string): number {
+  const base = getTerrain(terrainId).moveCost;
+  if (!u.isHero && u.side === "enemy" && getEnemy(u.defId).forestWalker && (terrainId === "jungle" || terrainId === "taiga")) return 1;
+  if (u.charms.includes("tideWalker") && (terrainId === "beach" || terrainId === "shallows" || terrainId === "marsh")) return 1;
+  return base;
+}
+
 export interface ReachInfo {
   pos: Hex;
   cost: number;
@@ -189,7 +198,7 @@ export function reachable(s: BattleState, u: Unit): Map<string, ReachInfo> {
   const start = hexKey(u.pos);
   out.set(start, { pos: u.pos, cost: 0, from: null, canStop: true });
   if (u.moved || u.acted || hasStatus(u, "stun") || hasStatus(u, "root")) return out;
-  const budget = moveAllowance(u);
+  const budget = moveAllowance(u) + (u.charms.includes("firstMove2") && s.turn === 1 ? 2 : 0);
   const zoc = new Set<string>();
   for (const f of living(s).filter((o) => o.side !== u.side)) for (const n of hexNeighbors(f.pos)) zoc.add(hexKey(n));
   const occupied = new Map(living(s).map((o) => [hexKey(o.pos), o]));
@@ -206,7 +215,7 @@ export function reachable(s: BattleState, u: Unit): Map<string, ReachInfo> {
       if (!canEnter(s, u, n)) continue;
       const occ = occupied.get(nk);
       if (occ && occ.side !== u.side) continue;
-      const cost = cur.cost + getTerrain(s.terrain[nk]).moveCost;
+      const cost = cur.cost + moveCost(u, s.terrain[nk]);
       if (cost > budget) continue;
       const prev = out.get(nk);
       if (prev && prev.cost <= cost) continue;
@@ -234,7 +243,8 @@ export function tracePath(reach: Map<string, ReachInfo>, to: Hex): Hex[] {
 export function skillRange(s: BattleState, u: Unit, skill: SkillDef, from: Hex = u.pos): [number, number] {
   const [min, max] = skill.range;
   const high = getTerrain(s.terrain[hexKey(from)]).highGround && max >= 2 && skill.shape !== "dash";
-  return [min, max + (high ? 1 : 0)];
+  const charm = u.charms.includes("rangeUp") && max >= 2 && skill.shape !== "dash";
+  return [min, max + (high ? 1 : 0) + (charm ? 1 : 0)];
 }
 
 export function skillReady(u: Unit, skill: SkillDef): boolean {
@@ -316,7 +326,10 @@ function damageMultiplier(s: BattleState, attacker: Unit, target: Unit): number 
   if (hasStatus(attacker, "might")) mult += 0.3;
   if (hasStatus(attacker, "bear")) mult += 0.3;
   if (attacker.isHero && getClass(getHero(attacker.defId).classId).family === "hanup" && target.hp < target.maxHp / 2) mult += 0.25;
-  mult *= counterMultiplier(attacker.ctype, target.ctype);
+  const cm = counterMultiplier(attacker.ctype, target.ctype);
+  mult *= cm;
+  if (cm > 1 && attacker.charms.includes("counterBoost")) mult *= 1.15;
+  if (target.charms.includes("lastStand") && target.hp < target.maxHp * 0.25) mult *= 0.7;
   if (hasStatus(target, "mark")) mult *= 1.25;
   if (hasStatus(target, "bear")) mult *= 0.7;
   if (!attacker.isHero && attacker.side === "enemy" && getEnemy(attacker.defId).pack) {
@@ -332,6 +345,7 @@ function damageMultiplier(s: BattleState, attacker: Unit, target: Unit): number 
   const allies = living(s, target.side).filter((a) => a.id !== target.id && hexDistance(a.pos, target.pos) === 1);
   if (allies.some((a) => a.defId === "totem")) mult *= 0.8;
   if (target.isHero && allies.some((a) => a.isHero && getClass(getHero(a.defId).classId).family === "inibs")) mult *= 0.9;
+  if (allies.some((a) => a.charms.includes("guardAlly"))) mult *= 0.9;
   return mult;
 }
 
@@ -538,11 +552,12 @@ function executeSkill(s: BattleState, u: Unit, skill: SkillDef, target: Hex): Ba
     } else if (skill.summon === "spirit-deer") {
       const d = { ...enemyUnit({ id: `deer-${s.nextId}`, defId: "spirit-deer", cell: [0, 0] }, s.difficulty, "hero"), pos: target, lifetime: 3, acted: true, moved: true };
       s = { ...s, nextId: s.nextId + 1, units: [...s.units, d] };
-    } else if (skill.summon === "wisp") {
-      const wisps = living(s, u.side).filter((w) => w.defId === "wisp").length;
-      const n = Math.min(2, MAX_WISPS - wisps);
+    } else if (skill.summon) {
+      const kind = skill.summon;
+      const have = living(s, u.side).filter((w) => w.defId === kind).length;
+      const n = Math.min(2, MAX_WISPS - have);
       for (let i = 0; i < n; i++) {
-        const proto = enemyUnit({ id: `wisp-${s.nextId}`, defId: "wisp", cell: [0, 0] }, s.difficulty);
+        const proto = enemyUnit({ id: `${kind}-${s.nextId}`, defId: kind, cell: [0, 0] }, s.difficulty);
         const spot = freeHexNear(s, proto, hexNeighbors(caster.pos)[(s.turn + i * 3) % 6]);
         if (!spot) break;
         s = { ...s, nextId: s.nextId + 1, units: [...s.units, { ...proto, pos: spot, moved: true, acted: true }] };
@@ -591,6 +606,10 @@ function executeSkill(s: BattleState, u: Unit, skill: SkillDef, target: Hex): Ba
       return;
     }
     let amount = computeDamage(s, atk, cur, skill, skill.shape === "chain" ? i : 0);
+    if (charmReady(atk, "firstStrike")) {
+      amount = Math.round(amount * 1.5);
+      s = spendCharm(s, atk, "firstStrike", "第一擊傷害 +50%");
+    }
     const critMul = atk.isHero && getClass(getHero(atk.defId).classId).family === "rikat" && skill.scale === "magic" ? 1.75 : 1.5;
     let crit = roll(s, i + 1) < atk.crit;
     if (!crit && charmReady(atk, "sureCrit")) {
@@ -684,7 +703,7 @@ export function battleReducer(s: BattleState, a: BattleAction): BattleState {
       if (!u || u.down || u.side !== s.side || u.moved || u.acted) return s;
       const dest = reachable(s, u).get(hexKey(a.to));
       if (!dest?.canStop) return s;
-      return mapUnit(s, u.id, (x) => ({ ...x, pos: a.to, moved: true }));
+      return checkOutcome(mapUnit(s, u.id, (x) => ({ ...x, pos: a.to, moved: true })));
     }
     case "SKILL": {
       const u = getUnit(s, a.unitId);
@@ -759,7 +778,8 @@ function beginSide(s: BattleState): BattleState {
     const regen = u.statuses.find((st) => st.id === "regen");
     if (regen) healed += regen.value ?? 0;
     if (u.charms.includes("regen5")) healed += Math.round(u.maxHp * 0.05);
-    if (u.isHero && getClass(getHero(u.defId).classId).family === "vukid" && t.id === "taiga") healed += Math.round(u.maxHp * 0.08);
+    if (u.isHero && getClass(getHero(u.defId).classId).family === "vukid" && (t.id === "taiga" || t.id === "jungle")) healed += Math.round(u.maxHp * 0.08);
+    if (living(out, side).some((a) => a.id !== u.id && a.charms.includes("healAura") && hexDistance(a.pos, u.pos) === 1)) healed += Math.round(u.maxHp * 0.05);
     // 圖騰光環
     for (const tot of living(out, side).filter((x) => x.defId === "totem" && hexDistance(x.pos, u.pos) === 1)) {
       healed += getEnemy(tot.defId).aura?.heal ?? 0;
@@ -782,7 +802,31 @@ function beginSide(s: BattleState): BattleState {
   return out;
 }
 
+/** 漲潮:格子變成淺灘/海;站在變成海的格子上的人被浪推到最近的陸地 */
+function applyTides(s: BattleState): BattleState {
+  for (const t of s.tides.filter((x) => x.turn === s.turn)) {
+    if (t.text) s = log(s, { kind: "event", text: t.text });
+    const terrain = { ...s.terrain };
+    for (const c of t.cells) {
+      const k = hexKey(cellToHex(c));
+      if (terrain[k]) terrain[k] = t.to;
+    }
+    s = { ...s, terrain };
+    for (const u of living(s)) {
+      if (canEnter(s, u, u.pos)) continue;
+      const others = { ...s, units: s.units.filter((x) => x.id !== u.id) };
+      const spot = freeHexNear(others, u, u.pos);
+      if (spot) {
+        s = mapUnit(s, u.id, (x) => ({ ...x, pos: spot }));
+        s = log(s, { kind: "info", text: `${u.name}被浪推上了岸`, at: spot });
+      }
+    }
+  }
+  return s;
+}
+
 function spawnWaves(s: BattleState): BattleState {
+  s = applyTides(s);
   const due = s.waves.filter((w) => w.turn === s.turn);
   for (const w of due) {
     s = log(s, { kind: "event", text: w.text });
@@ -803,6 +847,10 @@ export function checkOutcome(s: BattleState): BattleState {
   const foes = living(s, "enemy");
   const pending = s.waves.some((w) => w.turn > s.turn);
   if (o.kind === "rout" && !foes.length && !pending) return log({ ...s, outcome: "victory" }, { kind: "info", text: "勝利!" });
+  if (o.kind === "reach") {
+    const goal = new Set(o.cells.map((c) => hexKey(cellToHex(c))));
+    if (heroes.every((h) => goal.has(hexKey(h.pos)))) return log({ ...s, outcome: "victory" }, { kind: "info", text: "勝利!全員登上了高地" });
+  }
   if (o.kind === "purify" && getUnit(s, o.unitId)?.down) return log({ ...s, outcome: "victory" }, { kind: "info", text: "勝利!" });
   if (o.kind === "survive") {
     if (o.orBoss && getUnit(s, o.orBoss)?.down) return log({ ...s, outcome: "victory" }, { kind: "info", text: "勝利!首領被擊退了" });

@@ -104,6 +104,7 @@ export function newSave(difficulty: DifficultyId): SaveState {
   const party = ["batu", "danum", "bitu"];
   return {
     version: 1,
+    generation: 1,
     difficulty,
     party,
     heroes: Object.fromEntries(party.map((id) => [id, newHero(id)])),
@@ -157,7 +158,7 @@ export function loadSave(): SaveState | null {
     const s = JSON.parse(raw) as SaveState;
     if (s.version !== 1) return null;
     // 舊存檔沒有信物欄位
-    return { ...s, inventory: s.inventory ?? [], equipment: s.equipment ?? {}, nextUid: s.nextUid ?? 1, shards: s.shards ?? {} };
+    return { ...s, inventory: s.inventory ?? [], equipment: s.equipment ?? {}, nextUid: s.nextUid ?? 1, shards: s.shards ?? {}, generation: s.generation ?? 1 };
   } catch {
     return null;
   }
@@ -197,4 +198,16 @@ export function recruit(s: SaveState, heroId: string): SaveState {
   const avg = Math.round(s.party.reduce((n, id) => n + s.heroes[id].level, 0) / s.party.length);
   const hero = { ...newHero(heroId), level: avg, unspent: (avg - 1) * POINTS_PER_LEVEL };
   return { ...s, party: [...s.party, heroId], heroes: { ...s.heroes, [heroId]: hero } };
+}
+
+// ── 祖名傳承 ──────────────────────────────────────────
+/** 跨入新的一代:等級保留一半(至少 2)、經驗歸零、自由點數全部退回;信物與足跡保留 */
+export function inherit(s: SaveState, generation: number): SaveState {
+  if (s.generation >= generation) return s;
+  const heroes: SaveState["heroes"] = {};
+  for (const [id, h] of Object.entries(s.heroes)) {
+    const level = Math.max(2, Math.ceil(h.level / 2));
+    heroes[id] = { ...h, level, xp: 0, bonus: { str: 0, agi: 0, int: 0, spi: 0, vit: 0 }, unspent: (level - 1) * POINTS_PER_LEVEL };
+  }
+  return { ...s, heroes, generation };
 }

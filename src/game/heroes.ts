@@ -7,6 +7,7 @@ import type { HeroDef, SpeakerDef } from "./types";
 export const HEROES: HeroDef[] = [
   {
     id: "batu",
+    heirBios: { 2: "一萬年後承名的巴度。十六歲,整天在珊瑚礁上跳來跳去,最愛聽祖先巴度走過大海的故事,發誓自己也要做一件被傳下去的事。" },
     name: "巴度",
     roman: "Batu",
     etymology: "原始馬來-玻里尼西亞語 *batu「石頭」(原始南島語 *batux)。",
@@ -17,6 +18,7 @@ export const HEROES: HeroDef[] = [
   },
   {
     id: "danum",
+    heirBios: { 2: "承名的達努,十五歲,族裡最年輕的祭司。她說祖先的夢並沒有結束——海還在漲,就還要有人帶大家找到安身的地方。" },
     name: "達努",
     roman: "Danum",
     etymology: "原始南島語 *daNum「淡水」。",
@@ -27,6 +29,7 @@ export const HEROES: HeroDef[] = [
   },
   {
     id: "bitu",
+    heirBios: { 2: "承名的比杜,十三歲。他發現海上的星星跟老人說的位置不太一樣,每天晚上都在沙灘上畫星圖。" },
     name: "比杜",
     roman: "Bitu",
     etymology: "原始南島語 *bituqen「星星」。",
@@ -38,6 +41,7 @@ export const HEROES: HeroDef[] = [
   // ── 沿著記號追上來的族人(集滿足跡就能招募) ──
   {
     id: "mata",
+    heirBios: { 2: "承名的瑪塔,十五歲,能分辨山豬和雲豹的腳印,在森林裡從不迷路。" },
     name: "瑪塔",
     roman: "Mata",
     etymology: "原始南島語 *maCa「眼睛」。",
@@ -57,6 +61,7 @@ export const HEROES: HeroDef[] = [
   },
   {
     id: "kasiw",
+    heirBios: { 2: "承名的卡西,十四歲。他把祖先卡西種樹苗的故事當真,走到哪裡都種一棵,說這是給以後的人的路標。" },
     name: "卡西",
     roman: "Kasiw",
     etymology: "原始南島語 *kaSiw「樹」。",
@@ -76,6 +81,7 @@ export const HEROES: HeroDef[] = [
   },
   {
     id: "bulan",
+    heirBios: { 2: "承名的布蘭,十五歲,額前戴著傳了好幾代的月貝。她聽得見山豬神的哭聲,是第一個說「牠不是壞的」的人。" },
     name: "布蘭",
     roman: "Bulan",
     etymology: "原始南島語 *bulaN「月亮」。",
@@ -108,9 +114,17 @@ export const SPEAKERS: SpeakerDef[] = [
   { id: "grayfang", name: "灰牙", title: "鬣狗群的首領", facing: "left" },
   { id: "tiger", name: "雪紋虎", title: "沉默的獵者", facing: "left" },
   { id: "elephant", name: "古象神", title: "被寒祟附身的古菱齒象", facing: "left" },
+  { id: "boargod", name: "山豬神", title: "失去平原的白色山豬神", facing: "right" },
+  { id: "bear", name: "台灣黑熊", title: "洞穴的主人", facing: "right" },
 ];
 
 const speakerById = new Map(SPEAKERS.map((s) => [s.id, s]));
 export function getSpeaker(id: string): SpeakerDef | undefined {
   return speakerById.get(id);
+}
+
+/** 目前這一代的介紹 */
+export function heroBio(h: HeroDef, generation: number): string {
+  for (let g = generation; g >= 2; g--) if (h.heirBios?.[g]) return h.heirBios[g];
+  return h.bio;
 }

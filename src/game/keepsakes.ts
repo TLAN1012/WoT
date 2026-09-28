@@ -65,6 +65,37 @@ export const KEEPSAKES: KeepsakeDef[] = [
       navel: { effect: "killHeal", desc: "擊倒敵人時回復 10% 生命。" },
     },
   },
+  // ── 第二景 ──
+  {
+    id: "conch",
+    name: "海螺號角",
+    lore: "海水淹過陸橋的那天,巴度吹響這支海螺,把走散的族人一個一個叫回珊瑚礁上。",
+    effects: {
+      brow: { effect: "firstMove2", desc: "第一回合移動 +2。" },
+      chest: { effect: "tideWalker", desc: "沙灘、淺灘、凍沼移動消耗只算 1。" },
+      navel: { effect: "healAura", desc: "每回合開始,相鄰的同伴回復 5% 生命。" },
+    },
+  },
+  {
+    id: "handprint",
+    name: "洞穴手印石",
+    lore: "柴山洞壁上剝落的一小片石頭,上面印著紅色赭土的小手印。那是第一個在這裡過夜的孩子留下的。",
+    effects: {
+      brow: { effect: "rangeUp", desc: "遠程技能(射程 2 以上)射程 +1。" },
+      chest: { effect: "guardAlly", desc: "相鄰的同伴承傷 −10%。" },
+      navel: { effect: "lastStand", desc: "生命低於 25% 時,承傷 −30%。" },
+    },
+  },
+  {
+    id: "boar-tusk",
+    name: "山豬神的獠牙",
+    lore: "立約的那天,山豬神自己折下一小截獠牙,放在達努的腳邊。從此山上的和海邊的,各自守著各自的地方。",
+    effects: {
+      brow: { effect: "firstStrike", desc: "每場第一次攻擊,傷害 +50%。" },
+      chest: { effect: "counterBoost", desc: "剋制對手時,傷害再 +15%。" },
+      navel: { effect: "resStart", desc: "開場怒氣 +30;靈力型則靈力上限 +15。" },
+    },
+  },
 ];
 
 const byId = new Map(KEEPSAKES.map((k) => [k.id, k]));
@@ -75,7 +106,7 @@ export function getKeepsake(id: string): KeepsakeDef {
 }
 
 /** 每場一次的效果(用過就記在 unit.charmUsed) */
-export const ONCE_EFFECTS: CharmEffect[] = ["sureCrit", "dodgeOnce", "reviveOnce", "freeCastOnce", "chillOnce"];
+export const ONCE_EFFECTS: CharmEffect[] = ["sureCrit", "dodgeOnce", "reviveOnce", "freeCastOnce", "chillOnce", "firstStrike"];
 
 /** 野獸掉落:擊倒時的機率 */
 export const DROPS: Record<string, Array<{ keepsake: string; chance: number }>> = {
@@ -83,6 +114,9 @@ export const DROPS: Record<string, Array<{ keepsake: string; chance: number }>> 
   grayfang: [{ keepsake: "hyena-head", chance: 0.5 }],
   tiger: [{ keepsake: "tiger-claw", chance: 0.6 }],
   wisp: [{ keepsake: "frost-crystal", chance: 0.12 }],
+  leopard: [{ keepsake: "tiger-claw", chance: 0.25 }],
+  macaque: [{ keepsake: "conch", chance: 0.05 }],
+  bear: [{ keepsake: "handprint", chance: 0.3 }],
 };
 
 /** 某個效果來自哪件信物、哪個位置(戰場上顯示用) */

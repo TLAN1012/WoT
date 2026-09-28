@@ -15,6 +15,8 @@ export function ChapterScreen(props: {
   onEpilogue: () => void;
   onTitle: () => void;
   onMusic: () => void;
+  chapters: Array<{ id: string; title: string; unlocked: boolean }>;
+  onSwitch: (id: string) => void;
 }) {
   const { chapter, save } = props;
   const firstOpen = chapter.battles.findIndex((b) => !save.stars[b.id]);
@@ -24,7 +26,7 @@ export function ChapterScreen(props: {
 
   return (
     <div className="screen">
-      <div className="screen-bg" style={{ backgroundImage: `url(${storyArt("coast")})`, filter: "blur(2px)" }} />
+      <div className="screen-bg" style={{ backgroundImage: `url(${storyArt(chapter.battles[0].art)})`, filter: "blur(2px)" }} />
       <div className="content grid">
         <div className="row">
           <div className="grow">
@@ -39,6 +41,21 @@ export function ChapterScreen(props: {
             標題
           </button>
         </div>
+        {props.chapters.length > 1 && (
+          <div className="row" style={{ gap: 6 }}>
+            {props.chapters.map((c) => (
+              <button
+                key={c.id}
+                className={`btn btn-sm ${c.id === chapter.id ? "btn-primary" : ""}`}
+                disabled={!c.unlocked}
+                onClick={() => c.id !== chapter.id && props.onSwitch(c.id)}
+                title={c.unlocked ? c.title : "前一景全部通關後開放"}
+              >
+                {c.unlocked ? c.title.split("・")[0] + "・" + c.title.split("・")[1] : `🔒 ${c.title.split("・")[0]}`}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="map-wrap" style={{ backgroundImage: `url(${storyArt(chapter.mapArt)})` }}>
           {chapter.battles.map((b, i) => {
             const stars = save.stars[b.id] ?? 0;
@@ -54,14 +71,18 @@ export function ChapterScreen(props: {
           })}
         </div>
         <div className="paper">
-          <div className="paper-title">{cleared ? "第一景完成" : `下一站:${chapter.battles[firstOpen].title}`}</div>
+          <div className="paper-title">{cleared ? `${chapter.title.split("・")[0]}完成` : `下一站:${chapter.battles[firstOpen].title}`}</div>
           {!cleared ? (
             <>
               <div style={{ fontSize: 14 }}>{chapter.battles[firstOpen].subtitle}</div>
               <div className="sub" style={{ marginTop: 4 }}>⚑ {chapter.battles[firstOpen].objectiveText}</div>
             </>
           ) : (
-            <div style={{ fontSize: 14 }}>三人走過了陸橋,抵達太陽升起的地方。下一景製作中。</div>
+            <div style={{ fontSize: 14 }}>
+              {props.chapters.some((c) => c.unlocked && c.id !== chapter.id && props.chapters.findIndex((x) => x.id === c.id) > props.chapters.findIndex((x) => x.id === chapter.id))
+                ? "這一景完成了。可以前往下一景,也可以回來重玩、收集足跡。"
+                : "這一景完成了。下一景製作中。"}
+            </div>
           )}
           <div className="row" style={{ marginTop: 12 }}>
             {!cleared && (

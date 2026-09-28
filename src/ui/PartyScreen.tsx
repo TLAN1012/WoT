@@ -3,7 +3,7 @@
  * 下方是「六大職業系」圖鑑,還沒相遇的系只顯示剪影與語源。
  */
 import { ATTR_NAMES, FAMILIES, getClass, getFamily, XP_PER_LEVEL } from "../game/classes";
-import { getHero, HEROES } from "../game/heroes";
+import { getHero, heroBio, HEROES } from "../game/heroes";
 import { getKeepsake, SLOTS } from "../game/keepsakes";
 import { ATTR_IDS, canRecruit, deriveStats, equip, heroAttrs, resetPoints, spendPoint, wearer } from "../game/progress";
 import { getSkill } from "../game/skills";
@@ -49,6 +49,7 @@ function HeroSheet({ p, save, onChange, onPick }: { p: HeroProgress; save: SaveS
           <div className="row" style={{ gap: 8 }}>
             <span style={{ fontFamily: "var(--font-ui)", fontWeight: 600, fontSize: 22 }}>{hero.name}</span>
             <span className="sub">{hero.roman}</span>
+            {save.generation > 1 && <span className="chip">第 {save.generation} 代</span>}
             <span className="family-badge" style={{ background: fam.color }}>
               {fam.name}
               <small style={{ fontWeight: 400, fontSize: 11 }}>{fam.zh}</small>
@@ -58,7 +59,7 @@ function HeroSheet({ p, save, onChange, onPick }: { p: HeroProgress; save: SaveS
           <div className="sub" style={{ fontSize: 12.5 }}>
             {cls.name}・名字來自{hero.etymology}
           </div>
-          <div style={{ fontSize: 13.5, margin: "6px 0" }}>{hero.bio}</div>
+          <div style={{ fontSize: 13.5, margin: "6px 0" }}>{heroBio(hero, save.generation)}</div>
           <div className="row" style={{ gap: 8, fontSize: 13 }}>
             <b style={{ fontFamily: "var(--font-ui)" }}>Lv {p.level}</b>
             <div className="bar xp grow" style={{ maxWidth: 200 }}>
@@ -182,7 +183,7 @@ function RecruitPanel({ save, onRecruit }: { save: SaveState; onRecruit: (id: st
                     <i style={{ width: `${Math.min(1, have / need) * 100}%` }} />
                   </div>
                 </div>
-                {have > 0 && <div style={{ fontSize: 12.5 }}>{h.bio}</div>}
+                {have > 0 && <div style={{ fontSize: 12.5 }}>{heroBio(h, save.generation)}</div>}
                 {ready && (
                   <button className="btn btn-primary btn-sm" style={{ marginTop: 6 }} onClick={() => onRecruit(h.id)}>
                     讓{h.name}加入

@@ -11,6 +11,12 @@ export const ENEMIES: EnemyDef[] = [
   { id: "tiger", ctype: "beast", name: "雪紋虎", desc: "沉默的獨行獵者。會從兩三格外一躍撲殺,最喜歡挑落單、體弱的獵物。", hp: 100, atk: 19, mag: 0, def: 6, mdef: 4, move: 4, skills: ["bite", "pounce"], xp: 60 },
   { id: "wisp", ctype: "spirit", name: "寒祟", desc: "冰晶與黑色觸手糾纏成的小妖靈,吐出的寒氣會讓人行動遲緩。怕火,不敢踏進營火。", hp: 28, atk: 0, mag: 12, def: 2, mdef: 7, move: 3, skills: ["chill"], xp: 15, frost: true },
   { id: "elephant", ctype: "giant", name: "古象神", desc: "被寒祟附身的古菱齒象神,痛苦得失去了理智。把牠打倒,就能淨化附在身上的寒祟。", hp: 560, atk: 27, mag: 20, def: 12, mdef: 12, move: 2, skills: ["tusk", "stomp", "frostbreath", "spawn"], xp: 200, boss: true, frost: true, purify: true },
+  // ── 第二景:台灣的動物 ──
+  { id: "leopard", ctype: "beast", name: "雲豹", desc: "身上有雲朵般斑紋的獵者,在森林裡來去無聲(闊葉林移動不減速),會從兩三格外撲殺。", hp: 78, atk: 19, mag: 0, def: 6, mdef: 5, move: 5, skills: ["bite", "pounce"], xp: 55, forestWalker: true },
+  { id: "boar", ctype: "beast", name: "山豬", desc: "被海漲逼上山的山豬。會低頭直線衝撞,把人撞退。", hp: 60, atk: 16, mag: 0, def: 7, mdef: 3, move: 4, skills: ["bite", "ram"], xp: 35 },
+  { id: "macaque", ctype: "beast", name: "台灣獼猴", desc: "柴山洞穴裡的猴群。自己不太能打,但會從遠處丟石子,還會一擁而上。", hp: 34, atk: 11, mag: 0, def: 3, mdef: 4, move: 5, skills: ["stone"], xp: 18, pack: true },
+  { id: "bear", ctype: "giant", name: "台灣黑熊", desc: "洞穴的主人,胸前有白色的月牙紋。熊掌一拍能把人拍暈。", hp: 290, atk: 25, mag: 0, def: 12, mdef: 8, move: 3, skills: ["maul", "stomp"], xp: 120, boss: true },
+  { id: "boargod", ctype: "giant", name: "山豬神", desc: "巨大的白色山豬神。海水淹沒了牠們的平原,憤怒與悲傷讓牠失去理智。讓牠平靜下來(把生命打到 0),就能和牠立約。", hp: 640, atk: 28, mag: 0, def: 12, mdef: 10, move: 3, skills: ["ram", "stomp", "rally"], xp: 220, boss: true, purify: true },
   // 召喚物(我方)
   { id: "totem", name: "靈木圖騰", desc: "達努立起的圖騰。每回合治療相鄰的同伴,相鄰同伴承傷 −20%。", hp: 24, atk: 0, mag: 0, def: 6, mdef: 6, move: 0, skills: [], xp: 0, immobile: true, aura: { heal: 8, guard: true } },
   { id: "spirit-deer", ctype: "spirit", name: "靈鹿", desc: "布蘭請來的山林之靈。回合結束時會自己衝向最近的野獸。", hp: 34, atk: 16, mag: 0, def: 5, mdef: 8, move: 4, skills: ["gore"], xp: 0 },

@@ -1,8 +1,8 @@
 /** BALANCE=1 npx vitest run src/game/__tests__/balance.test.ts — 印出各關自動對打勝率 */
 import { describe, it } from "vitest";
 import { battleResult, living } from "../battle";
-import { CHAPTER_1 } from "../chapters/ch1";
-import { addShards, canRecruit, gainXp, newSave, recruit } from "../progress";
+import { CHAPTERS } from "../chapters";
+import { addShards, canRecruit, gainXp, inherit, newSave, recruit } from "../progress";
 import { simulate } from "../sim";
 import type { DifficultyId } from "../types";
 
@@ -13,7 +13,16 @@ run("balance", () => {
     it(diff, () => {
       const N = Number(process.env.N ?? 20);
       let save = newSave(diff);
-      for (const b of CHAPTER_1.battles) {
+      for (const ch of CHAPTERS) {
+      save = inherit(save, ch.generation);
+      for (const id of save.party) {
+        // 傳承後退回的點數照主屬性重新分配
+        let h = save.heroes[id];
+        const main = ({ batu: "str", danum: "spi", bitu: "int", mata: "agi", kasiw: "vit", bulan: "spi" } as const)[id as "batu"] ?? "vit";
+        while (h.unspent > 0) h = { ...h, unspent: h.unspent - 1, bonus: { ...h.bonus, [main]: h.bonus[main] + 1 } };
+        save = { ...save, heroes: { ...save.heroes, [id]: h } };
+      }
+      for (const b of ch.battles) {
         let wins = 0, turns = 0, fallen = 0, hpLeft = 0;
         const xpSum: Record<string, number> = {};
         for (let i = 0; i < N; i++) {
@@ -37,6 +46,7 @@ run("balance", () => {
         // 首勝的足跡,集滿就招募
         save = addShards(save, b.shards.first);
         for (const id of ["mata", "kasiw", "bulan"]) if (canRecruit(save, id)) save = recruit(save, id);
+      }
       }
     });
   }

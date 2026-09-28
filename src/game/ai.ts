@@ -28,6 +28,7 @@ import { getDifficulty } from "./difficulty";
 import { getEnemy } from "./enemies";
 import { getSkill } from "./skills";
 import { getTerrain } from "./terrain";
+import { cellToHex } from "./maps";
 import type { BattleState, Unit } from "./types";
 
 export interface AiPlan {
@@ -78,9 +79,9 @@ interface Option {
 function scoreOption(s: BattleState, u: Unit, from: Hex, skillId: string, target: Hex): number {
   const skill = getSkill(skillId);
   if (skill.effect === "summon") {
-    if (skill.summon === "wisp") {
-      const wisps = living(s, u.side).filter((w) => w.defId === "wisp").length;
-      return wisps >= MAX_WISPS - 1 ? -1 : 22 - wisps * 5;
+    if (u.side === "enemy") {
+      const have = living(s, u.side).filter((w) => w.defId === skill.summon).length;
+      return have >= MAX_WISPS - 1 ? -1 : 22 - have * 5;
     }
     // 圖騰:放在受傷同伴旁邊才划算
     const near = living(s, u.side).filter((a) => a.isHero && hexDistance(a.pos, target) === 1);
@@ -120,8 +121,31 @@ function scoreOption(s: BattleState, u: Unit, from: Hex, skillId: string, target
   return score;
 }
 
+/** 從目標格出發的地形距離場(「登上高地」這類關卡,模擬玩家用) */
+function goalField(s: BattleState, u: Unit, cells: Hex[]): Map<string, number> {
+  const dist = new Map<string, number>();
+  const frontier = cells.map((h) => ({ h, d: 0 }));
+  for (const c of cells) dist.set(hexKey(c), 0);
+  while (frontier.length) {
+    frontier.sort((a, b) => a.d - b.d);
+    const cur = frontier.shift()!;
+    if (cur.d > (dist.get(hexKey(cur.h)) ?? Infinity)) continue;
+    for (const n of hexNeighbors(cur.h)) {
+      const k = hexKey(n);
+      if (!canEnter(s, u, n)) continue;
+      const d = cur.d + getTerrain(s.terrain[k]).moveCost;
+      if (d < (dist.get(k) ?? Infinity)) {
+        dist.set(k, d);
+        frontier.push({ h: n, d });
+      }
+    }
+  }
+  return dist;
+}
+
 export function planEnemy(s: BattleState, u: Unit): AiPlan {
   const reach = reachable(s, u);
+  const goal = u.isHero && s.objective.kind === "reach" ? goalField(s, u, s.objective.cells.map(cellToHex)) : null;
   const options: Option[] = [];
   const e = u.isHero ? null : getEnemy(u.defId);
   for (const [, info] of reach) {
@@ -141,18 +165,26 @@ export function planEnemy(s: BattleState, u: Unit): AiPlan {
         if (e?.pack) pos += living(s, u.side).filter((p) => p.id !== u.id && hexDistance(p.pos, from) === 1).length * 2;
         // 英雄(模擬玩家):脆皮不要站到很多野獸搆得到的地方
         if (u.isHero && u.def < 10) pos -= living(s, "enemy").filter((f) => hexDistance(f.pos, from) <= f.move).length * 4;
+        if (goal) pos -= (goal.get(hexKey(from)) ?? 30) * 8;
         options.push({ move: from, skillId, target, score: sc + pos - info.cost * 0.1 });
       }
+    }
+  }
+  // 登高關卡:不一定要出手,也評估「只移動」
+  if (goal) {
+    for (const [k, info] of reach) {
+      if (!info.canStop) continue;
+      options.push({ move: info.pos, skillId: "", target: info.pos, score: -(goal.get(k) ?? 30) * 8 });
     }
   }
   if (options.length) {
     options.sort((a, b) => b.score - a.score);
     const skill = u.isHero ? 1 : getDifficulty(s.difficulty).aiSkill;
     const pick = rand(s, u) < skill ? options[0] : options[Math.min(options.length - 1, Math.floor(rand(s, u) * 3))];
-    return { unitId: u.id, move: hexEq(pick.move, u.pos) ? undefined : pick.move, skill: { id: pick.skillId, target: pick.target } };
+    return { unitId: u.id, move: hexEq(pick.move, u.pos) ? undefined : pick.move, skill: pick.skillId ? { id: pick.skillId, target: pick.target } : undefined };
   }
-  // 打不到人:逼近最近的敵人(英雄模擬則逼近最近的野獸)
-  const dist = distanceField(s, u);
+  // 打不到人:逼近最近的敵人(英雄模擬則逼近最近的野獸;登高關卡則往目標走)
+  const dist = goal ?? distanceField(s, u);
   let best: Hex | undefined;
   let bestD = dist.get(hexKey(u.pos)) ?? Infinity;
   for (const [k, info] of reach) {

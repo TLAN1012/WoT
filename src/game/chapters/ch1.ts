@@ -210,6 +210,7 @@ const B3: BattleDef = {
 
 export const CHAPTER_1: ChapterDef = {
   id: "ch1",
+  generation: 1,
   title: "第一景・跨海東來",
   subtitle: "冰河時期的陸橋上,三個孩子走向太陽升起的地方",
   era: "約兩萬年前・末次冰盛期",
